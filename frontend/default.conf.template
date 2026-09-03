@@ -79,7 +79,8 @@ server {
     # 3. Video Stream Proxy: Tắt buffering để stream mượt, không cache video
     # ==========================================================================
     location /api/stream/ {
-        # Không giới hạn rate limit cho video stream để tránh lỗi 429 khi buffer nhiều chunk
+        limit_req zone=api_limit burst=20 nodelay;
+
         proxy_pass ${BACKEND_URL};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
