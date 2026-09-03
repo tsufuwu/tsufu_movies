@@ -139,7 +139,6 @@ export default function SmartVideoPlayer({ m3u8Url, embedUrl, initialTime = 0, o
           key={embedUrl}
           src={embedUrl}
           className="w-full h-full border-0"
-          allowFullScreen
           title="Movie Player"
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock"
           allow="autoplay; fullscreen; picture-in-picture"

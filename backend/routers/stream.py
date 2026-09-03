@@ -108,7 +108,12 @@ async def proxy_embed(
         content=html,
         headers={
             "Content-Security-Policy": (
-                "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"
+                "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; "
+                "connect-src * data: blob:; "
+                "media-src * data: blob:; "
+                "script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; "
+                "worker-src * data: blob:; "
+                "img-src * data: blob:;"
             ),
             "X-Frame-Options": "SAMEORIGIN",
         },
