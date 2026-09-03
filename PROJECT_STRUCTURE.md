@@ -6,31 +6,35 @@
 
 ## 1. 🏗️ Tổng Quan Kiến Trúc Hệ Thống (High-Level Architecture)
 
-Ứng dụng được thiết kế theo mô hình **Single-Entry Reverse Proxy** với hai tầng dịch vụ chính kết nối qua mạng nội bộ Docker:
+Ứng dụng được thiết kế theo mô hình **Single-Entry Reverse Proxy** kết hợp **Kiến Trúc Caching Đa Tầng (Multi-tier Caching)** và **Rate Limiting L7**:
 
 ```
 [ Trình duyệt Client ]
-         │ (HTTP :80 hoặc $APP_PORT)
-         ▼
-┌───────────────────────────────────────────────────────────────┐
-│ Container: appphim_frontend (Nginx :80)                       │
-│                                                               │
-│  ├── location /     ──> Phục vụ React SPA tĩnh (index.html)   │
-│  └── location /api/ ──> Reverse Proxy sang Backend            │
-└───────────────────────────────┬───────────────────────────────┘
-                                │ (Mạng nội bộ: app-net)
-                                ▼
-┌───────────────────────────────────────────────────────────────┐
-│ Container: appphim_backend (FastAPI :8000 - KHÔNG mở port ngoài)│
-│                                                               │
-│  ├── /api/movies/*  ──> Gọi NguonC API + In-memory Cache TTL  │
-│  ├── /api/stream/*  ──> Giải mã m3u8, Bypass Ads & Proxy HTML │
-│  └── /api/health    ──> Health check giám sát hệ thống        │
-└─────────────────┬─────────────────────────────┬───────────────┘
-                  │                             │
-                  ▼                             ▼
-        [ API Phim NguonC ]           [ Máy chủ Video StreamC ]
-     (https://phim.nguonc.com)           (https://streamc.xyz)
+  │ (Client Cache: sessionStorage + localStorage Watch History)
+  │ (HTTP :80 hoặc $APP_PORT)
+  ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Container: appphim_frontend (Nginx Reverse Proxy :80)                     │
+│                                                                           │
+│  ├── location /      ──> Phục vụ React SPA tĩnh (index.html)              │
+│  └── location /api/  ──> Rate Limit (10r/s) & Nginx Micro-cache (5m TTL)  │
+│                          Proxy sang Backend nội bộ Docker                 │
+└─────────────────────────────────────┬─────────────────────────────────────┘
+                                      │ (Mạng nội bộ: app-net)
+                                      ▼
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Container: appphim_backend (FastAPI :8000 - KHÔNG mở port ra ngoài host)  │
+│                                                                           │
+│  ├── Security Layer ──> 4 lớp bảo mật: Session, Stream Signing, Honeypot  │
+│  ├── Dual-Mode Cache──> Kết nối Redis (chính) / TTLCache RAM (fallback)   │
+│  ├── /api/movies/*  ──> Gọi NguonC API + Cache danh sách/chi tiết         │
+│  └── /api/stream/*  ──> Giải mã m3u8 (Cached 10m), Adblock & Proxy HTML   │
+└───────────────────────┬───────────────────────────┬───────────────────────┘
+                        │                           │
+          ┌─────────────┴─────────────┐             │
+          ▼                           ▼             ▼
+   [ Container: redis ]      [ API Phim NguonC ] [ Máy chủ Video StreamC ]
+  (redis:7-alpine, LRU)   (https://phim.nguonc.com) (https://streamc.xyz)
 ```
 
 ---
@@ -47,53 +51,60 @@ tsufu_movies/
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── movies.py                 # API endpoints danh sách phim, chi tiết, thể loại, tìm kiếm
-│   │   ├── session.py                # API handshake & xác thực ephemeral session token
-│   │   └── stream.py                 # API endpoints bóc tách luồng video, bypass quảng cáo & proxy
+│   │   ├── session.py                # API handshake & xác thực ephemeral session token (kèm cache)
+│   │   └── stream.py                 # API endpoints bóc tách luồng video, bypass quảng cáo & proxy (kèm cache resolve 10m)
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── nguonc.py                 # Service tương tác trực tiếp với API phim.nguonc.com
+│   │   ├── cache.py                  # Module Cache Dual-mode: Redis (async) + In-Memory TTLCache fallback
+│   │   ├── nguonc.py                 # Service tương tác trực tiếp với API phim.nguonc.com (kèm async cache)
 │   │   └── embed_extractor.py        # Thuật toán trích xuất m3u8 và lọc mã độc/ads từ iframe embed
-│   ├── .env.example                  # Template biến môi trường Backend kèm Security Toggles
-│   ├── cache.py                      # Module bộ nhớ đệm RAM đơn giản kèm thời gian sống (TTL)
+│   ├── .env.example                  # Template biến môi trường Backend kèm REDIS_URL & Security Toggles
+│   ├── cache.py                      # Re-export module cache tương thích ngược
 │   ├── config.py                     # Đọc & parse cấu hình từ biến môi trường
 │   ├── Dockerfile                    # Đóng gói Backend container (python:3.11-slim)
-│   ├── main.py                       # Điểm khởi động FastAPI (CORS, Routers, Health Check)
+│   ├── main.py                       # Điểm khởi động FastAPI (CORS, Routers, Lifespan shutdown, Health Check)
 │   ├── README.md                     # Tài liệu hướng dẫn riêng cho Backend
-│   ├── requirements.txt              # Danh sách thư viện Python cần thiết
+│   ├── requirements.txt              # Danh sách thư viện Python (FastAPI, cachetools, redis...)
 │   ├── schemas.py                    # Định nghĩa cấu trúc dữ liệu Pydantic (Request/Response validation)
-│   └── security.py                   # Lõi bảo mật 4 lớp: HMAC Session, Stream Signing, Anti-Hotlink, Honeypot
+│   └── security.py                   # Lõi bảo mật 4 lớp: Session + Cache verification, Stream Signing, Anti-Hotlink, Honeypot
 ├── frontend/                         # Mã nguồn giao diện React + Vite
 │   ├── public/
 │   │   ├── favicon.svg               # Favicon biểu tượng trang web
 │   │   └── icons.svg                 # SVG sprite chứa icon ứng dụng
 │   ├── src/
 │   │   ├── api/
-│   │   │   └── movieApi.js           # Module gọi API backend (dùng relative path /api)
+│   │   │   └── movieApi.js           # Module gọi API backend (tích hợp sessionStorage token & clientCache)
 │   │   ├── assets/
 │   │   │   ├── hero.png              # Hình ảnh banner mặc định
 │   │   │   └── vite.svg              # Logo Vite
 │   │   ├── components/
+│   │   │   ├── ContinueWatchingRow.jsx # Hàng trượt hiển thị phim đang xem dở từ localStorage
 │   │   │   ├── Footer.jsx            # Chân trang (Footer)
 │   │   │   ├── HeroBanner.jsx        # Banner phim nổi bật trên đầu trang chủ
 │   │   │   ├── LoadingSpinner.jsx    # Component hiệu ứng đang tải (Spinner / Skeleton)
 │   │   │   ├── MovieCard.jsx         # Card hiển thị poster và thông tin tóm tắt phim
 │   │   │   ├── MovieRow.jsx          # Hàng trượt danh sách phim theo chủ đề
-│   │   │   ├── Navbar.jsx            # Thanh điều hướng đầu trang kèm thanh tìm kiếm realtime
+│   │   │   ├── Navbar.jsx            # Thanh điều hướng đầu trang kèm mega-menu & tìm kiếm realtime
 │   │   │   ├── Pagination.jsx        # Nút chuyển trang (Phân trang)
-│   │   │   └── SmartVideoPlayer.jsx  # Trình phát thông minh (HLS.js + Sandboxed Adblock Iframe)
+│   │   │   └── SmartVideoPlayer.jsx  # Trình phát thông minh (HLS.js + Auto-resume timestamp + Adblock Iframe)
+│   │   ├── hooks/
+│   │   │   └── useSession.js         # React hook quản lý handshake và trạng thái ephemeral session
 │   │   ├── pages/
 │   │   │   ├── CategoryPage.jsx      # Trang lọc theo loại phim (Phim lẻ, Phim bộ, Hoạt hình, TV Shows)
 │   │   │   ├── GenrePage.jsx         # Trang lọc theo thể loại và quốc gia
-│   │   │   ├── HomePage.jsx          # Trang chủ chính
+│   │   │   ├── HomePage.jsx          # Trang chủ chính (tích hợp hàng phim Tiếp tục xem)
 │   │   │   ├── MovieDetailPage.jsx   # Trang chi tiết thông tin phim, tập phim, diễn viên
 │   │   │   ├── SearchPage.jsx        # Trang hiển thị kết quả tìm kiếm phim
-│   │   │   └── WatchPage.jsx         # Trang xem phim (kết hợp player + danh sách chọn tập)
-│   │   ├── App.jsx                   # Khai báo cấu trúc Route và Layout tổng
+│   │   │   └── WatchPage.jsx         # Trang xem phim (kết hợp player + lưu/khôi phục timestamp phát)
+│   │   ├── utils/
+│   │   │   ├── clientCache.js        # Module Client Cache: sessionStorage + Memory fallback (TTL 3-5m)
+│   │   │   └── watchHistory.js       # Module quản lý lịch sử & tiến độ phát video vào localStorage
+│   │   ├── App.jsx                   # Khai báo cấu trúc Route, Layout tổng và session handshake
 │   │   ├── index.css                 # CSS toàn cục (Tailwind CSS v4 & tùy chỉnh giao diện)
 │   │   └── main.jsx                  # Điểm khởi chạy React (Mount vào DOM root)
 │   ├── .env.example                  # Template biến môi trường Frontend
 │   ├── .gitignore                    # Bỏ qua node_modules, dist, logs
-│   ├── default.conf.template         # Template cấu hình Nginx (hỗ trợ envsubst động)
+│   ├── default.conf.template         # Template cấu hình Nginx (Rate limit, Micro-cache, Proxy buffering)
 │   ├── Dockerfile                    # Multi-stage Dockerfile (Node build -> Nginx alpine)
 │   ├── index.html                    # File HTML gốc chứa thẻ <div id="root">
 │   ├── package.json                  # Cấu hình dự án Frontend, scripts, dependencies

@@ -146,3 +146,116 @@ Bạn có thể dễ dàng bật/tắt linh hoạt các cơ chế bảo mật tr
 | `ENFORCE_REFERER_CHECK` | `true` | Bật/tắt kiểm tra `Sec-Fetch-Site` và Referer chống nhúng lậu (`true`/`false`) |
 | `ENABLE_HONEYPOT` | `true` | Bật/tắt bẫy bot honeypot trong tìm kiếm (`true`/`false`) |
 
+---
+
+## ⚡ Kiến Trúc Caching Đa Tầng & Giới Hạn Tần Suất (Performance, Multi-tier Caching & Rate Limiting)
+
+Hệ thống được thiết kế theo kiến trúc **3 tầng Caching (Multi-tier Caching)** và **2 vùng Rate Limiting** khép kín từ mép mạng (Edge/Proxy) tới máy chủ ứng dụng và trình duyệt:
+
+```
+[ Client / Trình duyệt ]
+  │
+  ├── 1. Client Cache (sessionStorage - TTL 3-5m) ──> Phản hồi 0ms khi Back/Forward/Chuyển tab
+  ├── 2. Watch History (localStorage) ─────────────> Lưu timestamp phát video & Resume tự động
+  │
+  ▼  (HTTP GET /api/...)
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ NGINX REVERSE PROXY (Tầng 1: Edge Caching & Rate Limiting)                   │
+│                                                                               │
+│  ├── Rate Limit Zone 'api_limit': 10 req/s (burst=20 nodelay)                 │
+│  ├── Rate Limit Zone 'search_limit': 2 req/s (burst=5 nodelay) cho /search    │
+│  └── Fast Micro-caching (keys_zone=api_cache, 5m-10m TTL)                     │
+│        - HIT: Trả lời tức thì từ Nginx cache RAM/Disk (X-Cache-Status: HIT)   │
+│        - BYPASS: Luồng video (/api/stream/) & Handshake (/session/init)       │
+└──────────────────────────────────────┬────────────────────────────────────────┘
+                                       │ (Chỉ MISS mới gọi qua Docker network)
+                                       ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ FASTAPI BACKEND (Tầng 2: Dual-Mode Cache Engine)                              │
+│                                                                               │
+│  ├── Dual-Mode Switch:                                                        │
+│  │     - REDIS_URL có cấu hình ──> Dùng redis.asyncio (Distributed Cache)    │
+│  │     - REDIS_URL trống/lỗi    ──> Tự động fallback về cachetools.TTLCache  │
+│  │                                                                           │
+│  ├── Ephemeral Session Store: Lưu token & IP dải mạng với TTL 4 tiếng         │
+│  ├── Crawl Cache: Danh sách phim (15 phút), Chi tiết phim (30 phút)           │
+│  └── Stream Resolve Cache: Kết quả giải mã m3u8 (10 phút, cấp fresh HMAC)    │
+└──────────────────────────────────────┬────────────────────────────────────────┘
+                                       │ (Chỉ khi Backend cache hết hạn)
+                                       ▼
+                 [ Upstream APIs: NguonC & StreamC Servers ]
+```
+
+### 1. Nginx Hardening & Fast Micro-caching (frontend/default.conf.template)
+- **Rate Limiting 2 cấp độ**:
+  - `limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;`: Giới hạn toàn bộ `/api/` ở mức 10 req/s (burst 20), ngăn chặn bot spam API làm sập server.
+  - `limit_req_zone $binary_remote_addr zone=search_limit:10m rate=2r/s;`: Giới hạn riêng cho endpoint `/api/movies/search` ở mức 2 req/s (burst 5), bảo vệ cơ sở dữ liệu và upstream API khỏi các đợt tấn công vét từ khóa.
+- **Nginx Fast Micro-caching (`api_cache`)**:
+  - Cache vùng nhớ `10m` và dung lượng lưu trữ đĩa tối đa `100m`.
+  - Cache các request `GET` dữ liệu danh sách/chi tiết phim (`proxy_cache_valid 200 5m;`).
+  - Sử dụng chỉ thị `map` thông minh để tự động **BYPASS và KHÔNG CACHE** đối với:
+    - Luồng giải mã và phát video `/api/stream/`
+    - Handshake phiên làm việc `/api/v1/session/`
+    - Khi trình duyệt gửi `Cache-Control: no-cache`
+  - Đính kèm header `X-Cache-Status` (`HIT`, `MISS`, `BYPASS`) hỗ trợ quan sát và debug.
+- **Tối ưu Video Streaming**:
+  - Tắt hoàn toàn buffering và cache (`proxy_buffering off; proxy_cache off;`) cho location `/api/stream/` giúp truyền phát video m3u8/HLS và chunked streaming mượt mà, độ trễ thấp nhất.
+
+### 2. Backend Dual-Mode Caching (FastAPI: Redis & TTLCache Fallback)
+- **Module trung gian ([backend/services/cache.py](backend/services/cache.py))**:
+  - **Chế độ Redis (Async)**: Kết nối tới cụm Redis qua `redis.asyncio` với timeout 2.0s, tự động reconnect và serialization bằng `pickle` bảo toàn kiểu dữ liệu Pydantic.
+  - **Chế độ In-Memory Fallback (`cachetools.TTLCache`)**: Khi không cấu hình `REDIS_URL` hoặc khi Redis gặp sự cố, hệ thống tự động chuyển sang bộ nhớ RAM cục bộ với cơ chế thu hồi LRU (tối đa 5.000 items) mà **không làm crash bất kỳ request nào của người dùng**.
+- **Quản lý Session Token**:
+  - Mỗi token sinh ra từ `/api/v1/session/init` được lưu vào cache với TTL (`SESSION_TTL = 14400s` - 4 tiếng).
+  - Hàm `verify_session_active` kiểm tra sự tồn tại của token trong cache; nếu cache vừa restart, hàm sẽ fallback giải mã chữ ký HMAC và tự động tái nạp token vào cache.
+- **Cache Dữ liệu API ngoài & Bóc tách Stream**:
+  - Danh sách phim: TTL 15 phút (`CACHE_TTL_LIST = 900s`).
+  - Chi tiết phim: TTL 30 phút (`CACHE_TTL_DETAIL = 1800s`).
+  - Kết quả tìm kiếm: TTL 5 phút (`CACHE_TTL_SEARCH = 300s`).
+  - Kết quả giải mã Stream m3u8: TTL 10 phút (`CACHE_TTL_STREAM = 600s`), đồng thời sinh chữ ký HMAC mới có hạn dùng cho mỗi lượt xem.
+- **Giám sát sức khỏe (`/api/health`)**:
+  - Trả về trường `cache_backend` (`redis` hoặc `in-memory-ttl`) giúp quản trị viên nắm bắt tức thời loại cache backend đang vận hành.
+
+### 3. Frontend Client-side Caching & State Management (React + Vite)
+- **Handshake Tự động ([frontend/src/hooks/useSession.js](frontend/src/hooks/useSession.js))**:
+  - Tự động bắt tay handshake lấy token khi ứng dụng khởi chạy (`App.jsx`).
+  - Lưu token trong `sessionStorage` (`tsufu_session_token`) và bộ nhớ, đính kèm header `X-Session-Token` vào mọi yêu cầu HTTP; tự động retry nếu gặp lỗi `401`.
+- **Client Cache Chống Spam ([frontend/src/utils/clientCache.js](frontend/src/utils/clientCache.js))**:
+  - Lưu trữ kết quả gọi API phim vào `sessionStorage` (hoặc `Map` in-memory fallback) với TTL riêng biệt (1 - 5 phút).
+  - Khi người dùng điều hướng tiến/lùi (Back/Forward) hoặc chuyển đổi tab giữa các trang, dữ liệu hiển thị tức thì (0ms) mà không gửi request lặp lại lên máy chủ.
+- **Lịch sử & Tiến độ phát Video ([frontend/src/utils/watchHistory.js](frontend/src/utils/watchHistory.js))**:
+  - Lưu trữ danh sách phim đã xem, tập phim và timestamp hiện tại vào `localStorage` (`tsufu_watch_history`) theo nguyên tắc Client-First (không spam API server).
+  - Tự động throttling (ghi tối đa 1 lần mỗi 3 giây trong lúc video đang phát).
+  - Tự động tiếp tục phát video (Auto-resume) từ vị trí đang xem dở trên [SmartVideoPlayer.jsx](frontend/src/components/SmartVideoPlayer.jsx) kèm nút tùy chọn *"Xem từ đầu"*.
+  - Hiển thị hàng phim **"Tiếp tục xem"** trực quan trên Trang chủ ([ContinueWatchingRow.jsx](frontend/src/components/ContinueWatchingRow.jsx)) với thanh tiến độ % thời lượng đã xem và nút xóa nhanh khỏi lịch sử.
+
+---
+
+### Bảng biến môi trường Caching & Redis (`backend/.env`)
+
+| Biến môi trường | Mặc định | Ý nghĩa & Khuyến nghị |
+| :--- | :--- | :--- |
+| `REDIS_URL` | *(None / Trống)* | Địa chỉ kết nối Redis (vd: `redis://redis:6379/0`). Nếu để trống sẽ dùng in-memory TTLCache. |
+| `CACHE_TTL_LIST` | `900` (15 phút) | Thời gian cache danh sách phim mới, phim lẻ, phim bộ, hoạt hình (giây). |
+| `CACHE_TTL_DETAIL` | `1800` (30 phút) | Thời gian cache chi tiết thông tin bộ phim và danh sách tập (giây). |
+| `CACHE_TTL_SEARCH` | `300` (5 phút) | Thời gian cache kết quả tìm kiếm phim (giây). |
+| `CACHE_TTL_STREAM` | `600` (10 phút) | Thời gian cache kết quả bóc tách/giải mã luồng stream video (giây). |
+
+---
+
+### Khởi chạy Docker Compose với Redis & Nginx Cache
+
+Cấu hình trong `docker-compose.yml` đã được định nghĩa sẵn sàng bao gồm cả service Redis và các volume cache:
+
+```bash
+# Khởi động toàn bộ cụm dịch vụ (Frontend, Backend, Redis)
+docker-compose up -d --build
+
+# Xem logs kiểm tra kết nối cache
+docker logs -f appphim_backend
+```
+
+Khi chạy qua Docker Compose:
+- **`appphim_redis`**: Chạy phiên bản `redis:7-alpine`, giới hạn RAM `128mb`, chính sách thu hồi `allkeys-lru`, dữ liệu lưu bền vững trong volume `redis-data`.
+- **`nginx-cache`**: Volume mount tại `/var/cache/nginx` giúp dữ liệu micro-cache của Nginx không bị mất khi restart container Frontend.
+
