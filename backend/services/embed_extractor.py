@@ -52,39 +52,75 @@ _INJECT_JS = """
   Object.defineProperty(window, 'hasShownAds', { get: () => true, set: (v) => {} });
   Object.defineProperty(window, 'playerBlocked', { get: () => false, set: (v) => {} });
   
+  // Origin của node embed (được inject động từ backend)
+  const embedOrigin = "__EMBED_ORIGIN__";
+
+  // Intercept window.streamURL to ensure it always uses embedOrigin
+  let _streamURL = '';
+  Object.defineProperty(window, 'streamURL', {
+      get: () => _streamURL,
+      set: (v) => {
+          if (typeof v === 'string') {
+              if (v.startsWith('/eyJo') || (v.startsWith('/') && !v.startsWith('//'))) {
+                  _streamURL = (embedOrigin || window.location.origin) + v;
+                  return;
+              }
+          }
+          _streamURL = v;
+      },
+      configurable: true
+  });
+  
   // Intercept XHR and Fetch to bypass CORS for streamc.xyz and CDN domains
   const proxyUrl = window.location.origin + '/api/stream/fetch?url=';
 
-  function isJwLicense(urlStr) {
+  function isJwLicenseOrTelemetry(urlStr) {
       return Boolean(
           urlStr && (
               urlStr.includes('entitlements.jwplayer.com') ||
               urlStr.includes('jwplayer.com/license') ||
-              urlStr.includes('ssl.p.jwpcdn.com/telemetry')
+              urlStr.includes('ssl.p.jwpcdn.com/telemetry') ||
+              urlStr.includes('jwpltx.com')
           )
       );
   }
 
+  function resolveTargetUrl(urlStr) {
+      if (!urlStr || typeof urlStr !== 'string') return '';
+      let absUrl = '';
+      try { absUrl = new URL(urlStr, document.baseURI).href; } catch(e) { return urlStr; }
+
+      // If URL was resolved with window.location.host but has /eyJo (obfuscated stream path),
+      // rewrite it to point to embedOrigin!
+      if (embedOrigin && absUrl.includes(window.location.host) && absUrl.includes('/eyJo')) {
+          absUrl = absUrl.replace(window.location.origin, embedOrigin);
+      } else if (embedOrigin && absUrl.startsWith('/') && absUrl.includes('eyJo')) {
+          absUrl = embedOrigin + absUrl;
+      }
+      return absUrl;
+  }
+
   function shouldProxy(url) {
       if (!url || typeof url !== 'string') return false;
-      let absUrl;
-      try { absUrl = new URL(url, document.baseURI).href; } catch(e) { return false; }
-      if (!absUrl.startsWith('http') || absUrl.includes(window.location.host)) return false;
+      const absUrl = resolveTargetUrl(url);
+      if (!absUrl.startsWith('http')) return false;
 
-      // DO NOT proxy license checks, analytics, telemetry, or ads
-      if (isJwLicense(absUrl) || absUrl.includes('google-analytics') || absUrl.includes('doubleclick')) {
+      // DO NOT proxy license checks, telemetry, analytics, or ads
+      if (isJwLicenseOrTelemetry(absUrl) || absUrl.includes('google-analytics') || absUrl.includes('doubleclick')) {
           return false;
       }
 
-      // Proxy StreamC domains or media CDN domains
+      // If it's a streamc / embed / eyJo path, ALWAYS proxy!
+      if (absUrl.includes('streamc') || absUrl.includes('hihihoho') || absUrl.includes('/eyJo')) {
+          return true;
+      }
+
+      // Don't proxy internal app endpoints unless eyJo
+      if (absUrl.includes(window.location.host)) return false;
+
+      // Proxy video stream segments and playlists
       try {
           const u = new URL(absUrl);
-          const hostname = u.hostname.toLowerCase();
-          if (hostname.includes('streamc') || hostname.includes('hihihoho')) {
-              return true;
-          }
-
-          // Proxy video stream segments and playlists
           const pathname = u.pathname.toLowerCase();
           if (
               pathname.endsWith('.m3u8') ||
@@ -108,18 +144,17 @@ _INJECT_JS = """
   window.fetch = async function() {
       let input = arguments[0];
       let urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
-      let absUrl = '';
-      try { absUrl = new URL(urlStr, document.baseURI).href; } catch(e) {}
+      let absUrl = resolveTargetUrl(urlStr);
 
-      // Mock JWPlayer entitlements check with 200 OK directly in browser
-      if (isJwLicense(absUrl)) {
+      // Mock JWPlayer entitlements & telemetry with 200 OK directly in browser
+      if (isJwLicenseOrTelemetry(absUrl)) {
           return new Response(JSON.stringify({}), {
               status: 200,
               headers: { 'Content-Type': 'application/json' }
           });
       }
 
-      const refParam = '&ref=' + encodeURIComponent(document.baseURI || window.location.href);
+      const refParam = '&ref=' + encodeURIComponent(embedOrigin || document.baseURI || window.location.href);
       if (typeof input === 'string' && shouldProxy(absUrl)) {
           arguments[0] = proxyUrl + encodeURIComponent(absUrl) + refParam;
       } else if (input instanceof Request && shouldProxy(absUrl)) {
@@ -132,16 +167,15 @@ _INJECT_JS = """
   const originalSend = XMLHttpRequest.prototype.send;
 
   XMLHttpRequest.prototype.open = function(method, url) {
-      let absUrl = '';
-      try { absUrl = new URL(url, document.baseURI).href; } catch(e) {}
+      let absUrl = resolveTargetUrl(url);
       this._interceptUrl = absUrl;
 
-      if (isJwLicense(absUrl)) {
+      if (isJwLicenseOrTelemetry(absUrl)) {
           this._isJwLicense = true;
           return originalOpen.apply(this, [method, 'data:application/json,{}', ...Array.prototype.slice.call(arguments, 2)]);
       }
 
-      const refParam = '&ref=' + encodeURIComponent(document.baseURI || window.location.href);
+      const refParam = '&ref=' + encodeURIComponent(embedOrigin || document.baseURI || window.location.href);
       if (typeof url === 'string' && shouldProxy(absUrl)) {
           url = proxyUrl + encodeURIComponent(absUrl) + refParam;
       }
@@ -358,11 +392,18 @@ def _clean_html(html: str, embed_url: str) -> str:
     # Lấy origin của embed (vd: https://embed11.streamc.xyz)
     embed_origin = _get_origin(embed_url)
 
+    # Thay thế window.streamURL = '/' + streamData.sUb thành window.streamURL = '{embed_origin}/' + streamData.sUb
+    cleaned = re.sub(
+        r"window\.streamURL\s*=\s*['\"]/['\"]\s*\+\s*streamData\.sUb",
+        f"window.streamURL = '{embed_origin}/' + streamData.sUb",
+        cleaned,
+    )
+
     # Inject <base> tag + bypass JS ngay sau <head>
     # <base href> đảm bảo TẤT CẢ relative URL (kể cả dynamic createElement)
     # đều resolve về đúng origin của streamc.xyz, không phải localhost
     base_tag = f'<base href="{embed_origin}/">'
-    inject = base_tag + _INJECT_JS
+    inject = base_tag + _INJECT_JS.replace("__EMBED_ORIGIN__", embed_origin)
 
     cleaned = re.sub(
         r"(<head[^>]*>)",
