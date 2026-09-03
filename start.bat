@@ -1,6 +1,6 @@
 @echo off
 echo ==============================================
-echo Khởi động App Phim (Frontend & Backend)
+echo Khoi dong App Phim (Frontend va Backend)
 echo ==============================================
 
 :: Khởi động Backend trong cửa sổ mới
