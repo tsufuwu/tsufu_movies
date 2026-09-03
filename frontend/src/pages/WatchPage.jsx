@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import LoadingSpinner from '../components/LoadingSpinner'
 import SmartVideoPlayer from '../components/SmartVideoPlayer'
-import { getMovieDetail } from '../api/movieApi'
+import { getMovieDetail, resolveStream } from '../api/movieApi'
 
 const API_BASE = '/api/movies'
 
@@ -53,13 +53,33 @@ export default function WatchPage() {
       setStreamError(true)
       return
     }
-    setStreamLoading(false)
+    setStreamLoading(true)
     setStreamError(false)
-    // SmartVideoPlayer tự xử lý resolve & fallback chain
-    setCurrentEpData({
-      m3u8: ep.m3u8 || null,
-      embed: ep.embed || null,
-    })
+    
+    try {
+      if (ep.m3u8) {
+        // Có sẵn link direct m3u8 từ API nguồn
+        setCurrentEpData({ m3u8: ep.m3u8, embed: null })
+      } else if (ep.embed) {
+        // Gọi server của mình để proxy link embed (tránh lỗi từ chối kết nối / chặn ads)
+        const resolved = await resolveStream(ep.embed)
+        setCurrentEpData({
+          m3u8: resolved.m3u8 || null,
+          embed: resolved.proxy_url || resolved.embed_url || null,
+        })
+      } else {
+        setCurrentEpData(null)
+      }
+    } catch (err) {
+      console.error('Resolve stream error:', err)
+      // Fallback về link embed gốc nếu proxy bị lỗi
+      setCurrentEpData({
+        m3u8: null,
+        embed: ep.embed || null
+      })
+    } finally {
+      setStreamLoading(false)
+    }
   }
 
   const handleEpisodeClick = async (ep) => {

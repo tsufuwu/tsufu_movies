@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import HTMLResponse
 from services.embed_extractor import resolve_stream, get_proxy_html
+from config import ALLOWED_PROXY_DOMAINS
 
 router = APIRouter(prefix="/api/stream", tags=["stream"])
 
@@ -41,10 +42,10 @@ async def proxy_embed(url: str = Query(..., description="Embed URL cần proxy")
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
 
-    # Chỉ cho phép domain streamc.xyz để tránh bị dùng như open proxy
+    # Chỉ cho phép các domain được cấu hình để tránh bị dùng như open proxy
     from urllib.parse import urlparse
     parsed = urlparse(url)
-    if "streamc.xyz" not in parsed.netloc:
+    if not any(domain in parsed.netloc for domain in ALLOWED_PROXY_DOMAINS):
         raise HTTPException(status_code=403, detail="Domain không được phép proxy")
 
     html = await get_proxy_html(url)

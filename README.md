@@ -23,13 +23,7 @@ Dự án này áp dụng mô hình **Microservices cơ bản**, bao gồm 2 ph�
 
 ## Hướng dẫn cài đặt (Local Development)
 
-### Cách 1: Chạy bằng 1 click trên Windows (Khuyến nghị cho Windows không có Docker)
-Nếu bạn dùng Windows và không thể dùng Docker, tôi đã chuẩn bị sẵn một file tự động chạy.
-1. Mở thư mục dự án `d:\appphim`
-2. Bấm đúp (double-click) vào file `start.bat` (hoặc chạy lệnh `.\start.bat` trong terminal).
-Hệ thống sẽ tự động mở 2 cửa sổ để thiết lập và chạy song song cả Backend (`http://localhost:8000`) và Frontend (`http://localhost:5173`).
-
-### Cách 2: Chạy bằng Docker (Khuyến nghị nếu có Docker)
+### Cách 1: Chạy bằng Docker (Khuyến nghị)
 Cách dễ nhất để khởi động toàn bộ hệ thống (cả Frontend và Backend) ở local là sử dụng Docker Compose.
 1. Mở terminal tại thư mục gốc dự án.
 2. Chạy lệnh:
@@ -40,7 +34,7 @@ Cách dễ nhất để khởi động toàn bộ hệ thống (cả Frontend v�
    - Web Frontend: `http://localhost:3000`
    - API Backend: `http://localhost:8000`
 
-### Cách 3: Chạy thủ công từng dịch vụ
+### Cách 2: Chạy thủ công từng dịch vụ
 
 #### Chạy Backend
 1. Mở terminal, di chuyển vào thư mục `/backend`.

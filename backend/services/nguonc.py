@@ -1,7 +1,7 @@
 """Service layer for calling the NguonC API."""
 import httpx
 from cache import cache
-from config import NGUONC_BASE_URL, CACHE_TTL_LIST, CACHE_TTL_DETAIL, CACHE_TTL_SEARCH
+from config import NGUONC_BASE_URL, HTTP_TIMEOUT, CACHE_TTL_LIST, CACHE_TTL_DETAIL, CACHE_TTL_SEARCH
 from schemas import (
     MovieSummary, Pagination, PaginatedMovies,
     MovieDetail, MovieDetailResponse,
@@ -12,7 +12,7 @@ from schemas import (
 async def _fetch_json(path: str, params: dict = None) -> dict:
     """Fetch JSON from NguonC API."""
     url = f"{NGUONC_BASE_URL}{path}"
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
         resp = await client.get(url, params=params)
         resp.raise_for_status()
         return resp.json()

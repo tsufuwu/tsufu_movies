@@ -10,19 +10,20 @@ import base64
 import json
 import re
 import httpx
+from bs4 import BeautifulSoup
+from functools import lru_cache
+from config import STREAMC_BASE, HTTP_TIMEOUT
 
 # ── Constants ────────────────────────────────────────────────────────────────
-
-STREAMC_BASE = "https://streamc.xyz"
 
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/125.0.0.0 Safari/537.36"
+        "Chrome/120.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
-    "Referer": "https://streamc.xyz/",
+    "Referer": STREAMC_BASE + "/",
 }
 
 # Scripts cần xóa khỏi HTML proxy
@@ -47,6 +48,8 @@ _INJECT_JS = """
   window.hasShownAds = true;
   // Block window.open to prevent any popup
   window.open = function() { return null; };
+  // Mock devtoolsDetector to prevent reload loop
+  window.devtoolsDetector = { launch: function(){}, addListener: function(){} };
 </script>
 """
 
@@ -136,7 +139,7 @@ async def _fetch_embed_html(embed_url: str) -> str | None:
             return html
 
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
             resp = await client.get(embed_url, headers=HEADERS)
             if resp.status_code == 200:
                 _html_cache[embed_url] = (resp.text, time.time())
@@ -190,7 +193,7 @@ async def _resolve_m3u8(stream_path: str, referer: str) -> str | None:
     try:
         headers = {**HEADERS, "Referer": referer}
         async with httpx.AsyncClient(
-            timeout=10.0,
+            timeout=HTTP_TIMEOUT,
             follow_redirects=False,  # Bắt redirect thủ công
         ) as client:
             resp = await client.get(stream_path, headers=headers)
