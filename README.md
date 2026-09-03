@@ -23,21 +23,35 @@ Dự án này áp dụng mô hình **Microservices cơ bản**, bao gồm 2 ph�
 
 ## Hướng dẫn cài đặt (Local Development)
 
-### Chạy Backend
-1. Mở terminal, di chuyển vào thư mục dự án.
+### Cách 1: Chạy bằng Docker (Khuyến nghị)
+Cách dễ nhất để khởi động toàn bộ hệ thống (cả Frontend và Backend) ở local là sử dụng Docker Compose.
+1. Mở terminal tại thư mục gốc dự án.
+2. Chạy lệnh:
+   ```bash
+   docker-compose up -d --build
+   ```
+3. Sau khi quá trình build hoàn tất:
+   - Web Frontend: `http://localhost:3000`
+   - API Backend: `http://localhost:8000`
+
+### Cách 2: Chạy thủ công từng dịch vụ
+
+#### Chạy Backend
+1. Mở terminal, di chuyển vào thư mục `/backend`.
 2. Tạo môi trường ảo và cài đặt thư viện:
    ```bash
    python -m venv venv
    source venv/Scripts/activate  # (Trên Windows)
-   pip install -r backend/requirements.txt
+   # source venv/bin/activate    # (Trên Linux/Mac)
+   pip install -r requirements.txt
    ```
 3. Khởi động server FastAPI:
    ```bash
-   python backend/main.py
+   python main.py
    ```
    Backend sẽ chạy tại: `http://localhost:8000`
 
-### Chạy Frontend
+#### Chạy Frontend
 1. Mở một terminal khác, di chuyển vào thư mục `/frontend`.
 2. Cài đặt các gói thư viện Node:
    ```bash
