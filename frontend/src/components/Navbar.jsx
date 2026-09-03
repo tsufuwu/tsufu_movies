@@ -101,56 +101,67 @@ export default function Navbar() {
       scrolled ? 'bg-[#141414] shadow-lg shadow-black/50 transition-colors duration-500 py-2' : 'bg-gradient-to-b from-black/90 via-black/50 to-transparent transition-colors duration-500 py-4'
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16 sm:h-20">
+        <div className="flex items-center justify-between h-16">
           
-          {/* Logo & Navigation Links */}
-          <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2 group">
-              <span className="text-2xl sm:text-3xl font-black tracking-wider text-[#E50914] group-hover:scale-105 transition-transform" style={fontStyle}>
-                TSUFU
-              </span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#E50914]/20 text-[#E50914] border border-[#E50914]/30">
-                MOVIES
-              </span>
-            </Link>
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2 group shrink-0">
+            <span 
+              className="text-2xl sm:text-3xl font-black tracking-wider hover:scale-105 transition-transform" 
+              style={fontStyle}
+            >
+              <span className="text-[#E50914]">TSU</span>
+              <span className="text-white">FU</span>
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#E50914]/20 border border-[#E50914]/30 tracking-wider">
+              <span className="text-[#E50914]">MO</span>
+              <span className="text-white">VIES</span>
+            </span>
+          </Link>
 
-            {/* Desktop Menu */}
-            <div className="hidden md:flex items-center gap-6" style={fontStyle}>
-              <Link to="/" className={navLinkClass}>Trang Chủ</Link>
-              <Link to="/danh-sach/phim-le" className={navLinkClass}>Phim Lẻ</Link>
-              <Link to="/danh-sach/phim-bo" className={navLinkClass}>Phim Bộ</Link>
-              <Link to="/danh-sach/hoat-hinh" className={navLinkClass}>Hoạt Hình</Link>
-              <Link to="/danh-sach/tv-shows" className={navLinkClass}>TV Shows</Link>
+          {/* Desktop Nav */}
+          <div className="hidden md:flex items-center" style={{ gap: "0.5rem", ...fontStyle }}>
+            <Link to="/" className={navLinkClass}>Trang Chủ</Link>
+            <Link to="/danh-sach/phim-le" className={navLinkClass}>Phim Lẻ</Link>
+            <Link to="/danh-sach/phim-bo" className={navLinkClass}>Phim Bộ</Link>
+            <Link to="/danh-sach/hoat-hinh" className={navLinkClass}>Hoạt Hình</Link>
+            <Link to="/danh-sach/tv-shows" className={navLinkClass}>TV Shows</Link>
+
+            {/* Genre Dropdown - Hover mở menu */}
+            <div 
+              className="relative group" 
+              ref={genreRef} 
+              onMouseEnter={() => setGenreOpen(true)} 
+              onMouseLeave={() => setGenreOpen(false)}
+            >
+              <button 
+                className={`${navLinkClass} gap-2`}
+                onClick={() => setGenreOpen(!genreOpen)}
+              >
+                <span>Thể Loại</span>
+                <svg className={`w-5 h-5 transition-transform duration-300 ${genreOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
               
-              {/* Dropdown Thể Loại (Mega Menu) */}
-              <div className="relative" ref={genreRef}>
-                <button
-                  onClick={() => setGenreOpen(!genreOpen)}
-                  className={`flex items-center gap-1.5 ${navLinkClass} ${genreOpen ? 'text-[#E50914]' : ''}`}
-                >
-                  <span>Thể Loại</span>
-                  <svg className={`w-4 h-4 transition-transform duration-300 ${genreOpen ? 'rotate-180 text-[#E50914]' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {/* Mega Menu Dropdown */}
-                <div className={`absolute top-full left-0 mt-3 w-80 bg-[#141414]/95 backdrop-blur-xl border border-gray-800/80 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.9)] transition-all duration-300 origin-top z-50 ${
-                  genreOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
-                }`}>
-                  <div className="grid grid-cols-2 gap-2">
-                    {GENRES.map((g) => (
-                      <Link
-                        key={g.slug}
-                        to={`/the-loai/${g.slug}`}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-all group"
-                        onClick={() => setGenreOpen(false)}
-                      >
-                        <div className="w-1.5 h-6 bg-[#E50914] rounded-full scale-y-0 group-hover:scale-y-100 transition-transform duration-300"></div>
-                        {g.name}
-                      </Link>
-                    ))}
-                  </div>
+              <div 
+                className={`absolute top-full left-1/2 -translate-x-1/2 mt-4 w-[560px] bg-gradient-to-br from-[#181818] to-[#141414] backdrop-blur-xl border border-gray-700/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.7)] p-8 transition-all duration-300 ease-out origin-top before:absolute before:-top-4 before:left-0 before:w-full before:h-4 before:content-[''] z-50 ${
+                  genreOpen ? 'opacity-100 visible scale-100 pointer-events-auto' : 'opacity-0 invisible scale-95 pointer-events-none'
+                }`}
+              >
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-[#181818] border-t border-l border-gray-700/50 rotate-45"></div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {GENRES.map(g => (
+                    <Link
+                      key={g.slug}
+                      to={`/the-loai/${g.slug}`}
+                      className="group flex items-center gap-4 p-4 text-base font-bold text-gray-300 bg-white/5 hover:bg-white hover:text-[#E50914] rounded-xl transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                      onClick={() => setGenreOpen(false)}
+                    >
+                      <div className="w-1.5 h-6 bg-[#E50914] rounded-full scale-y-0 group-hover:scale-y-100 transition-transform duration-300"></div>
+                      {g.name}
+                    </Link>
+                  ))}
                 </div>
               </div>
             </div>
