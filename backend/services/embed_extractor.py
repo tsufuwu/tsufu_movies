@@ -39,7 +39,7 @@ _STRIP_PATTERNS = [
     r'<script[^>]*cloudflareinsights[^>]*>[\s\S]*?</script>',
 ]
 
-# JS inject: set popupReady=true ngay lập tức để bypass guard
+# JS inject: set popupReady=true ngay lập tức để bypass guard & mock JWPlayer entitlements
 _INJECT_JS = """
 <script>
   // Disable Web Workers to force HLS.js to use Main Thread.
@@ -54,32 +54,109 @@ _INJECT_JS = """
   
   // Intercept XHR and Fetch to bypass CORS for streamc.xyz and CDN domains
   const proxyUrl = window.location.origin + '/api/stream/fetch?url=';
-  
+
+  function isJwLicense(urlStr) {
+      return Boolean(
+          urlStr && (
+              urlStr.includes('entitlements.jwplayer.com') ||
+              urlStr.includes('jwplayer.com/license') ||
+              urlStr.includes('ssl.p.jwpcdn.com/telemetry')
+          )
+      );
+  }
+
   function shouldProxy(url) {
       if (!url || typeof url !== 'string') return false;
       let absUrl;
       try { absUrl = new URL(url, document.baseURI).href; } catch(e) { return false; }
       if (!absUrl.startsWith('http') || absUrl.includes(window.location.host)) return false;
-      return true;
+
+      // DO NOT proxy license checks, analytics, telemetry, or ads
+      if (isJwLicense(absUrl) || absUrl.includes('google-analytics') || absUrl.includes('doubleclick')) {
+          return false;
+      }
+
+      // Proxy StreamC domains or media CDN domains
+      try {
+          const u = new URL(absUrl);
+          const hostname = u.hostname.toLowerCase();
+          if (hostname.includes('streamc') || hostname.includes('hihihoho')) {
+              return true;
+          }
+
+          // Proxy video stream segments and playlists
+          const pathname = u.pathname.toLowerCase();
+          if (
+              pathname.endsWith('.m3u8') ||
+              pathname.endsWith('.ts') ||
+              pathname.endsWith('.png') ||
+              pathname.endsWith('.m4s') ||
+              pathname.endsWith('.mp4') ||
+              pathname.includes('/stream') ||
+              pathname.includes('/hls')
+          ) {
+              return true;
+          }
+      } catch(e) {
+          return false;
+      }
+
+      return false;
   }
 
   const originalFetch = window.fetch;
   window.fetch = async function() {
-      let url = arguments[0];
-      if (typeof url === 'string' && shouldProxy(url)) {
-          arguments[0] = proxyUrl + encodeURIComponent(new URL(url, document.baseURI).href);
-      } else if (url instanceof Request && shouldProxy(url.url)) {
-          arguments[0] = new Request(proxyUrl + encodeURIComponent(new URL(url.url, document.baseURI).href), url);
+      let input = arguments[0];
+      let urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+      let absUrl = '';
+      try { absUrl = new URL(urlStr, document.baseURI).href; } catch(e) {}
+
+      // Mock JWPlayer entitlements check with 200 OK directly in browser
+      if (isJwLicense(absUrl)) {
+          return new Response(JSON.stringify({}), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+          });
+      }
+
+      if (typeof input === 'string' && shouldProxy(absUrl)) {
+          arguments[0] = proxyUrl + encodeURIComponent(absUrl);
+      } else if (input instanceof Request && shouldProxy(absUrl)) {
+          arguments[0] = new Request(proxyUrl + encodeURIComponent(absUrl), input);
       }
       return originalFetch.apply(this, arguments);
   };
 
   const originalOpen = XMLHttpRequest.prototype.open;
+  const originalSend = XMLHttpRequest.prototype.send;
+
   XMLHttpRequest.prototype.open = function(method, url) {
-      if (typeof url === 'string' && shouldProxy(url)) {
-          url = proxyUrl + encodeURIComponent(new URL(url, document.baseURI).href);
+      let absUrl = '';
+      try { absUrl = new URL(url, document.baseURI).href; } catch(e) {}
+      this._interceptUrl = absUrl;
+
+      if (isJwLicense(absUrl)) {
+          this._isJwLicense = true;
+          return originalOpen.apply(this, [method, 'data:application/json,{}', ...Array.prototype.slice.call(arguments, 2)]);
+      }
+
+      if (typeof url === 'string' && shouldProxy(absUrl)) {
+          url = proxyUrl + encodeURIComponent(absUrl);
       }
       return originalOpen.apply(this, [method, url, ...Array.prototype.slice.call(arguments, 2)]);
+  };
+
+  XMLHttpRequest.prototype.send = function(body) {
+      if (this._isJwLicense) {
+          try {
+              Object.defineProperty(this, 'status', { value: 200, writable: false });
+              Object.defineProperty(this, 'responseText', { value: '{}', writable: false });
+              Object.defineProperty(this, 'response', { value: '{}', writable: false });
+          } catch(e) {}
+          this.dispatchEvent(new Event('load'));
+          return;
+      }
+      return originalSend.apply(this, arguments);
   };
 
   // Block window.open to prevent any popup

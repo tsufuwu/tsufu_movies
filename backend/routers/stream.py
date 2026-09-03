@@ -3,7 +3,7 @@ import urllib.parse
 from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Query, HTTPException, Request, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 from services.embed_extractor import resolve_stream, get_proxy_html
 from config import (
     ALLOWED_PROXY_DOMAINS,
@@ -124,6 +124,13 @@ async def fetch_proxy(
     # Chống leech băng thông từ domain lạ
     if not validate_referer_and_fetch_site(request):
         raise HTTPException(status_code=403, detail="Forbidden: cross-site fetch request")
+
+    if not url or not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="Invalid or missing URL scheme")
+
+    # Short-circuit JWPlayer license/entitlements checks with 200 OK
+    if "entitlements.jwplayer.com" in url or "jwplayer.com/license" in url:
+        return JSONResponse(content={}, status_code=200)
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
