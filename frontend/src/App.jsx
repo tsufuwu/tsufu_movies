@@ -7,8 +7,12 @@ import WatchPage from './pages/WatchPage'
 import SearchPage from './pages/SearchPage'
 import GenrePage from './pages/GenrePage'
 import CategoryPage from './pages/CategoryPage'
+import { useSession } from './hooks/useSession'
 
 export default function App() {
+  // Proactively handshake session on app mount
+  useSession()
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg-primary)]">
       <Navbar />

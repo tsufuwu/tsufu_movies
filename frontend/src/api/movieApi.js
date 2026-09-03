@@ -1,12 +1,20 @@
 /**
- * Frontend Movie API Client with Ephemeral Session and Security Hardening.
+ * Frontend Movie API Client with Ephemeral Session, Client-Side Caching, and Security Hardening.
  */
+import { clientCache } from '../utils/clientCache';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const API_BASE = `${BASE_URL}/api/movies`;
+const SESSION_STORAGE_KEY = 'tsufu_session_token';
 
-// In-memory session token & handshake promise
-let currentSessionToken = null;
+// In-memory + sessionStorage session token & handshake promise
+let currentSessionToken = (() => {
+  try {
+    return window.sessionStorage.getItem(SESSION_STORAGE_KEY) || null;
+  } catch {
+    return null;
+  }
+})();
 let sessionPromise = null;
 
 /**
@@ -30,6 +38,9 @@ export async function initSession(forceRefresh = false) {
       if (res.ok) {
         const data = await res.json();
         currentSessionToken = data.session_token;
+        try {
+          window.sessionStorage.setItem(SESSION_STORAGE_KEY, currentSessionToken);
+        } catch {}
         return currentSessionToken;
       }
     } catch (err) {
@@ -74,6 +85,10 @@ async function fetchWithSession(url, options = {}) {
 
   // If 401 Unauthorized (session expired or invalid), auto-refresh and retry once
   if (res.status === 401) {
+    try {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch {}
+    currentSessionToken = null;
     const newToken = await initSession(true);
     if (newToken) {
       headers['X-Session-Token'] = newToken;
@@ -87,61 +102,91 @@ async function fetchWithSession(url, options = {}) {
   return res.json();
 }
 
-async function fetchApi(endpoint, options = {}) {
-  return fetchWithSession(`${API_BASE}${endpoint}`, options);
+/**
+ * Cached API fetch helper.
+ * Uses clientCache (sessionStorage / memory) with TTL to prevent redundant requests.
+ */
+async function fetchApi(endpoint, options = {}, ttlSeconds = 180) {
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const shouldCache = isGet && !options.skipCache;
+
+  if (shouldCache) {
+    const cached = clientCache.get(endpoint);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const data = await fetchWithSession(`${API_BASE}${endpoint}`, options);
+
+  if (shouldCache && data) {
+    clientCache.set(endpoint, data, ttlSeconds);
+  }
+
+  return data;
 }
 
-export async function getLatestMovies(page = 1) {
-  return fetchApi(`/latest?page=${page}`);
+// ── Public API Methods with Client Caching ──────────────────────────────────
+
+export async function getLatestMovies(page = 1, options = {}) {
+  return fetchApi(`/latest?page=${page}`, options, 180);
 }
 
-export async function getSingleMovies(page = 1) {
-  return fetchApi(`/phim-le?page=${page}`);
+export async function getSingleMovies(page = 1, options = {}) {
+  return fetchApi(`/phim-le?page=${page}`, options, 180);
 }
 
-export async function getSeriesMovies(page = 1) {
-  return fetchApi(`/phim-bo?page=${page}`);
+export async function getSeriesMovies(page = 1, options = {}) {
+  return fetchApi(`/phim-bo?page=${page}`, options, 180);
 }
 
-export async function getAnimeMovies(page = 1) {
-  return fetchApi(`/hoat-hinh?page=${page}`);
+export async function getAnimeMovies(page = 1, options = {}) {
+  return fetchApi(`/hoat-hinh?page=${page}`, options, 180);
 }
 
-export async function getTvShows(page = 1) {
-  return fetchApi(`/tv-shows?page=${page}`);
+export async function getTvShows(page = 1, options = {}) {
+  return fetchApi(`/tv-shows?page=${page}`, options, 180);
 }
 
-export async function getMoviesByGenre(slug, page = 1) {
-  return fetchApi(`/the-loai/${slug}?page=${page}`);
+export async function getMoviesByGenre(slug, page = 1, options = {}) {
+  return fetchApi(`/the-loai/${slug}?page=${page}`, options, 180);
 }
 
-export async function getMoviesByCountry(slug, page = 1) {
-  return fetchApi(`/quoc-gia/${slug}?page=${page}`);
+export async function getMoviesByCountry(slug, page = 1, options = {}) {
+  return fetchApi(`/quoc-gia/${slug}?page=${page}`, options, 180);
 }
 
-export async function searchMovies(keyword, page = 1, honeypot = '') {
+export async function searchMovies(keyword, page = 1, honeypot = '', options = {}) {
   let url = `/search?keyword=${encodeURIComponent(keyword)}&page=${page}`;
   if (honeypot) {
     url += `&_hp=${encodeURIComponent(honeypot)}`;
   }
-  return fetchApi(url);
+  return fetchApi(url, options, 60);
 }
 
-export async function getMovieDetail(slug) {
-  return fetchApi(`/detail/${slug}`);
+export async function getMovieDetail(slug, options = {}) {
+  return fetchApi(`/detail/${slug}`, options, 300); // 5 minutes TTL for details
 }
 
-export async function getMoviesByType(type, page = 1) {
-  return fetchApi(`/${type}?page=${page}`);
+export async function getMoviesByType(type, page = 1, options = {}) {
+  return fetchApi(`/${type}?page=${page}`, options, 180);
 }
 
 /**
  * Resolve embed URL → returns { m3u8, proxy_url, embed_url, source }
- * Signed proxy_url is verified by backend with HMAC & expiration.
+ * Resolving is cached briefly on client (120s) to prevent spamming when replaying
  */
 export async function resolveStream(embedUrl) {
   const encoded = encodeURIComponent(embedUrl);
-  return fetchWithSession(`${BASE_URL}/api/stream/resolve?url=${encoded}`);
+  const cacheKey = `stream_resolve_${embedUrl}`;
+  const cached = clientCache.get(cacheKey);
+  if (cached) return cached;
+
+  const result = await fetchWithSession(`${BASE_URL}/api/stream/resolve?url=${encoded}`);
+  if (result) {
+    clientCache.set(cacheKey, result, 120);
+  }
+  return result;
 }
 
 /**
@@ -151,4 +196,11 @@ export async function checkHealth() {
   const res = await fetch(`${BASE_URL}/api/health`);
   if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
   return res.json();
+}
+
+/**
+ * Clear client-side data cache
+ */
+export function clearClientCache() {
+  clientCache.clear();
 }

@@ -3,8 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import LoadingSpinner from '../components/LoadingSpinner'
 import SmartVideoPlayer from '../components/SmartVideoPlayer'
 import { getMovieDetail, resolveStream } from '../api/movieApi'
-
-const API_BASE = '/api/movies'
+import { watchHistory } from '../utils/watchHistory'
 
 export default function WatchPage() {
   const { slug, episodeSlug } = useParams()
@@ -16,6 +15,7 @@ export default function WatchPage() {
   const [activeServer, setActiveServer] = useState(0)
   const [streamLoading, setStreamLoading] = useState(false)
   const [streamError, setStreamError] = useState(false)
+  const [initialTime, setInitialTime] = useState(0)
 
   useEffect(() => {
     async function fetchData() {
@@ -36,6 +36,27 @@ export default function WatchPage() {
 
           if (targetEp) {
             setCurrentEpName(targetEp.name)
+
+            // Check saved watch progress in localStorage
+            const saved = watchHistory.getProgress(slug, targetEp.slug)
+            if (saved && saved.isCurrentEpisode && saved.currentTime > 5) {
+              setInitialTime(saved.currentTime)
+            } else {
+              setInitialTime(0)
+            }
+
+            // Immediately register movie in history
+            watchHistory.saveProgress({
+              slug,
+              name: m.name,
+              poster_url: m.poster_url || m.thumb_url,
+              episodeSlug: targetEp.slug,
+              episodeName: targetEp.name,
+              currentTime: saved?.currentTime || 0,
+              duration: saved?.duration || 0,
+              force: true,
+            })
+
             await loadStream(targetEp)
           }
         }
@@ -82,8 +103,26 @@ export default function WatchPage() {
     }
   }
 
+  const handleProgress = ({ currentTime, duration, force = false }) => {
+    if (!movie) return
+    const epSlug = episodeSlug || (movie.episodes?.[activeServer]?.items?.[0]?.slug)
+    watchHistory.saveProgress({
+      slug,
+      name: movie.name,
+      poster_url: movie.poster_url || movie.thumb_url,
+      episodeSlug: epSlug,
+      episodeName: currentEpName,
+      currentTime,
+      duration,
+      force,
+    })
+  }
+
   const handleEpisodeClick = async (ep) => {
     setCurrentEpName(ep.name)
+    const saved = watchHistory.getProgress(slug, ep.slug)
+    setInitialTime(saved && saved.isCurrentEpisode ? saved.currentTime : 0)
+
     navigate(`/xem/${slug}/${ep.slug}`, { replace: true })
     window.scrollTo({ top: 0, behavior: 'smooth' })
     await loadStream(ep)
@@ -122,6 +161,8 @@ export default function WatchPage() {
             <SmartVideoPlayer
               m3u8Url={currentEpData.m3u8}
               embedUrl={currentEpData.embed}
+              initialTime={initialTime}
+              onProgress={handleProgress}
             />
           ) : (
             <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">

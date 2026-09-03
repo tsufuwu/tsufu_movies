@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import HeroBanner from '../components/HeroBanner'
 import MovieRow from '../components/MovieRow'
+import ContinueWatchingRow from '../components/ContinueWatchingRow'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { getLatestMovies, getSingleMovies, getSeriesMovies, getAnimeMovies } from '../api/movieApi'
 
@@ -91,6 +92,7 @@ export default function HomePage() {
     <div>
       {heroMovie && <HeroBanner movie={heroMovie} />}
       <div className={heroMovie ? 'relative z-10' : 'pt-20'} style={{ marginTop: '3rem' }}>
+        <ContinueWatchingRow />
         <MovieRow title="Phim Mới Cập Nhật" movies={latest} link="/danh-sach/phim-moi-cap-nhat" />
         <MovieRow title="Phim Lẻ" movies={singles} link="/danh-sach/phim-le" />
         <MovieRow title="Phim Bộ" movies={series} link="/danh-sach/phim-bo" />
