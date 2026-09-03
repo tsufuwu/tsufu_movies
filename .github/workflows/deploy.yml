@@ -31,8 +31,9 @@ jobs:
             VERSION="${BASH_REMATCH[1]}"
             echo "Version found: $VERSION"
           else
-            VERSION="latest"
-            echo "No version format ({version}) found. Defaulting to 'latest'."
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            VERSION="$SHORT_SHA"
+            echo "No version format ({version}) found. Defaulting to short commit hash: $VERSION"
           fi
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
