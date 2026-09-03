@@ -36,9 +36,11 @@ Cách dễ nhất để khởi động toàn bộ hệ thống (cả Frontend v�
    ```bash
    docker-compose up -d --build
    ```
+> 📖 **Xem thêm tài liệu chi tiết:** [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) mô tả toàn bộ kiến trúc, sơ đồ mạng, vai trò từng file và các cảnh báo an toàn tránh gây lỗi hệ thống.
+
 3. Sau khi quá trình build hoàn tất:
-   - Web Frontend: `http://localhost:3000`
-   - API Backend: `http://localhost:8000`
+   - **Web Frontend (Nginx Reverse Proxy):** `http://localhost:80` (hoặc cổng cấu hình qua `APP_PORT`)
+   - **API Backend:** Được bảo vệ an toàn trong mạng nội bộ Docker (`app-net`), không publish port ra ngoài host. Trình duyệt gọi API qua Reverse Proxy: `http://localhost:80/api/...`
 
 ### Cách 2: Chạy thủ công từng dịch vụ
 
