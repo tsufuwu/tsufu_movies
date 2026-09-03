@@ -42,10 +42,46 @@ _STRIP_PATTERNS = [
 # JS inject: set popupReady=true ngay lập tức để bypass guard
 _INJECT_JS = """
 <script>
+  // Disable Web Workers to force HLS.js to use Main Thread.
+  // This allows our XHR/Fetch interceptors to catch video segment requests!
+  window.Worker = undefined;
+
   // Injected by proxy: bypass anti-adblock guard
-  window.popupReady  = true;
-  window.popupFailed = false;
-  window.hasShownAds = true;
+  Object.defineProperty(window, 'popupReady', { get: () => true, set: (v) => {} });
+  Object.defineProperty(window, 'popupFailed', { get: () => false, set: (v) => {} });
+  Object.defineProperty(window, 'hasShownAds', { get: () => true, set: (v) => {} });
+  Object.defineProperty(window, 'playerBlocked', { get: () => false, set: (v) => {} });
+  
+  // Intercept XHR and Fetch to bypass CORS for streamc.xyz and CDN domains
+  const proxyUrl = window.location.origin + '/api/stream/fetch?url=';
+  
+  function shouldProxy(url) {
+      if (!url || typeof url !== 'string') return false;
+      let absUrl;
+      try { absUrl = new URL(url, document.baseURI).href; } catch(e) { return false; }
+      if (!absUrl.startsWith('http') || absUrl.includes(window.location.host)) return false;
+      return true;
+  }
+
+  const originalFetch = window.fetch;
+  window.fetch = async function() {
+      let url = arguments[0];
+      if (typeof url === 'string' && shouldProxy(url)) {
+          arguments[0] = proxyUrl + encodeURIComponent(new URL(url, document.baseURI).href);
+      } else if (url instanceof Request && shouldProxy(url.url)) {
+          arguments[0] = new Request(proxyUrl + encodeURIComponent(new URL(url.url, document.baseURI).href), url);
+      }
+      return originalFetch.apply(this, arguments);
+  };
+
+  const originalOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+      if (typeof url === 'string' && shouldProxy(url)) {
+          url = proxyUrl + encodeURIComponent(new URL(url, document.baseURI).href);
+      }
+      return originalOpen.apply(this, [method, url, ...Array.prototype.slice.call(arguments, 2)]);
+  };
+
   // Block window.open to prevent any popup
   window.open = function() { return null; };
   // Mock devtoolsDetector to prevent reload loop
@@ -231,6 +267,13 @@ def _clean_html(html: str, embed_url: str) -> str:
         "",
         cleaned,
         flags=re.IGNORECASE,
+    )
+
+    # Vô hiệu hóa hoàn toàn hàm blockPlayer()
+    cleaned = re.sub(
+        r'function blockPlayer\(\)\s*\{',
+        r'function blockPlayer() { return;',
+        cleaned
     )
 
     # Lấy origin của embed (vd: https://embed11.streamc.xyz)

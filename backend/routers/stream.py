@@ -1,8 +1,7 @@
-"""Stream resolution & proxy endpoints."""
-from fastapi import APIRouter, Query, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Query, HTTPException, Response
+from fastapi.responses import HTMLResponse, StreamingResponse
 from services.embed_extractor import resolve_stream, get_proxy_html
-from config import ALLOWED_PROXY_DOMAINS
+from config import ALLOWED_PROXY_DOMAINS, STREAMC_BASE
 
 router = APIRouter(prefix="/api/stream", tags=["stream"])
 
@@ -59,3 +58,40 @@ async def proxy_embed(url: str = Query(..., description="Embed URL cần proxy")
             "X-Frame-Options": "SAMEORIGIN",
         },
     )
+
+@router.get("/fetch")
+async def fetch_proxy(url: str = Query(...)):
+    """Proxy fetch requests to bypass Referer/CORS block from streamc.xyz"""
+    import httpx
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": f"{STREAMC_BASE}/"
+    }
+    try:
+        client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+        req = client.build_request("GET", url, headers=headers)
+        resp = await client.send(req, stream=True)
+        
+        async def stream_content():
+            try:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+            finally:
+                await resp.aclose()
+                await client.aclose()
+                
+        # Remove content-length to avoid ERR_CONTENT_LENGTH_MISMATCH
+        allowed_headers = ["accept-ranges", "content-type", "content-range"]
+        resp_headers = {}
+        for k, v in resp.headers.items():
+            if k.lower() in allowed_headers:
+                resp_headers[k] = v
+                
+        return StreamingResponse(
+            stream_content(), 
+            status_code=resp.status_code, 
+            headers=resp_headers
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
