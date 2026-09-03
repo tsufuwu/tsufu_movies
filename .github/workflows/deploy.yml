@@ -26,14 +26,14 @@ jobs:
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           echo "Commit Message: $COMMIT_MSG"
           
-          # Tìm định dạng ({version}), ví dụ (v1.0.0) hoặc (1.2.3)
-          if [[ "$COMMIT_MSG" =~ \(([vV]?[0-9]+\.[0-9]+(\.[0-9]+)?(-\w+)?)\) ]]; then
+          # Tìm định dạng phiên bản chuẩn (vX.Y.Z hoặc X.Y.Z)
+          if [[ "$COMMIT_MSG" =~ \(([vV]?[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9-]*)\) ]]; then
             VERSION="${BASH_REMATCH[1]}"
-            echo "Version found: $VERSION"
+            echo "Valid version format found: $VERSION"
           else
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
             VERSION="$SHORT_SHA"
-            echo "No version format ({version}) found. Defaulting to short commit hash: $VERSION"
+            echo "No valid version format ({vX.Y.Z}) found. Defaulting to short commit hash: $VERSION"
           fi
           echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
@@ -48,14 +48,18 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ env.IMAGE_NAME_BACKEND }}:${{ steps.extract_version.outputs.tag }}
+          tags: |
+            ${{ env.IMAGE_NAME_BACKEND }}:${{ steps.extract_version.outputs.tag }}
+            ${{ env.IMAGE_NAME_BACKEND }}:latest
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
-          tags: ${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.extract_version.outputs.tag }}
+          tags: |
+            ${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.extract_version.outputs.tag }}
+            ${{ env.IMAGE_NAME_FRONTEND }}:latest
 
   trigger-webhook:
     needs: build-and-push
