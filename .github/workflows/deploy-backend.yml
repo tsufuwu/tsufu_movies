@@ -1,13 +1,15 @@
-name: Build and Trigger Deploy
+name: Deploy Backend
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME_FRONTEND: ${{ secrets.DOCKERHUB_USERNAME }}/appphim-frontend
   IMAGE_NAME_BACKEND: ${{ secrets.DOCKERHUB_USERNAME }}/appphim-backend
 
 jobs:
@@ -26,7 +28,6 @@ jobs:
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           echo "Commit Message: $COMMIT_MSG"
           
-          # Tìm định dạng phiên bản chuẩn (vX.Y.Z hoặc X.Y.Z)
           if [[ "$COMMIT_MSG" =~ \(([vV]?[0-9]+\.[0-9]+\.[0-9]+[a-zA-Z0-9-]*)\) ]]; then
             VERSION="${BASH_REMATCH[1]}"
             echo "Valid version format found: $VERSION"
@@ -52,15 +53,6 @@ jobs:
             ${{ env.IMAGE_NAME_BACKEND }}:${{ steps.extract_version.outputs.tag }}
             ${{ env.IMAGE_NAME_BACKEND }}:latest
 
-      - name: Build and push Frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: |
-            ${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.extract_version.outputs.tag }}
-            ${{ env.IMAGE_NAME_FRONTEND }}:latest
-
   trigger-webhook:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -70,7 +62,7 @@ jobs:
         run: |
           if [[ -n "${{ secrets.DEPLOY_HOOK_URL }}" ]]; then 
             echo "Triggering deploy for tag: ${{ needs.build-and-push.outputs.deploy_tag }}"
-            curl -X GET "${{ secrets.DEPLOY_HOOK_URL }}?repo=${{ secrets.DOCKERHUB_USERNAME }}&name=appphim&tag=${{ needs.build-and-push.outputs.deploy_tag }}"
+            curl -X GET "${{ secrets.DEPLOY_HOOK_URL }}?repo=${{ secrets.DOCKERHUB_USERNAME }}&name=appphim-backend&tag=${{ needs.build-and-push.outputs.deploy_tag }}"
           else
             echo "No deploy hook URL set, skipping."
           fi
