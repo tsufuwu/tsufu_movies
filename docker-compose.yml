@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ghcr.io/tsufuwu/tsufu_movies-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: appphim_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+    # Uncomment and modify if you need specific volumes (e.g. for uploads or SQLite)
+    # volumes:
+    #   - ./data:/app/data
+
+  frontend:
+    image: ghcr.io/tsufuwu/tsufu_movies-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: appphim_frontend
+    restart: always
+    ports:
+      - "3000:80" # Maps port 80 in container to 3000 on host. Modify 3000 if needed.
+    depends_on:
+      - backend
