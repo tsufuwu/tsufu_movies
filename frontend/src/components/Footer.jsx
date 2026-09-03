@@ -1,4 +1,4 @@
-﻿import { Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 export default function Footer() {
   return (
@@ -8,8 +8,14 @@ export default function Footer() {
           
           {/* Cột 1: Logo & Info */}
           <div className="flex flex-col">
-            <Link to="/" className="inline-block mb-6 transition-transform hover:scale-105">
-              <span className="text-4xl md:text-5xl font-black text-[#E50914] tracking-tighter uppercase drop-shadow-lg">TSUFU</span>
+            <Link to="/" className="flex items-center gap-2 mb-4">
+              <span 
+                className="text-4xl md:text-5xl tracking-tighter drop-shadow-lg" 
+                style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+              >
+                <span className="text-[#E50914]">TSU</span>
+                <span className="text-white">FU</span>
+              </span>
             </Link>
             <p className="text-sm text-gray-400 leading-relaxed mb-4">
               Tsufu - Trang web xem phim trực tuyến chất lượng cao, cập nhật nhanh nhất các bộ phim hot.

@@ -102,7 +102,13 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
-            <span className="text-4xl md:text-5xl font-black text-[#E50914] tracking-tighter uppercase drop-shadow-2xl hover:scale-105 transition-transform">TSUFU</span>
+            <span 
+              className="text-4xl md:text-5xl tracking-tighter drop-shadow-2xl hover:scale-105 transition-transform" 
+              style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+            >
+              <span className="text-[#E50914]">TSU</span>
+              <span className="text-white">FU</span>
+            </span>
           </Link>
 
           {/* Desktop Nav */}
