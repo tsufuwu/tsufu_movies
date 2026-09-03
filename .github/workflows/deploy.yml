@@ -54,11 +54,23 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            # Di chuyển vào thư mục chứa code trên CyberPanel VPS
+            # Khởi tạo thư mục nếu chưa có
+            mkdir -p /home/operator.cloudyez.com/public_html
             cd /home/operator.cloudyez.com/public_html || exit
             
-            # Pull the latest code (for any docker-compose.yml updates)
-            git pull origin main
+            # Kiểm tra xem đây đã là thư mục git chưa
+            if [ -d ".git" ]; then
+              echo "Git repository found. Pulling latest code..."
+              git fetch --all
+              git reset --hard origin/main
+              git pull origin main
+            else
+              echo "Git repository not found. Initializing..."
+              git init
+              git remote add origin https://github.com/tsufuwu/tsufu_movies.git
+              git fetch
+              git checkout -t origin/main -f
+            fi
             
             # Pull the latest docker images from GHCR
             docker compose pull
