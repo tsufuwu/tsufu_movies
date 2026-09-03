@@ -17,10 +17,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Cấu hình CORS:
+# - Trong môi trường Production (Docker): Browser gửi request cùng origin tới Nginx Reverse Proxy -> không bị hạn chế CORS.
+# - Trong môi trường Dev (Local): Cho phép các origin được khai báo trong config (Vite dev server, localhost...).
+is_wildcard_cors = "*" in CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS if CORS_ORIGINS else ["*"],
+    allow_credentials=not is_wildcard_cors,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -34,6 +38,7 @@ async def root():
     return {"message": "App Phim API is running", "docs": "/docs"}
 
 
+@app.get("/api/health")
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "app-phim-backend"}

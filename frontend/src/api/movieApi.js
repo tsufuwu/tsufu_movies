@@ -62,7 +62,7 @@ export async function resolveStream(embedUrl) {
  * Check Backend API Health
  */
 export async function checkHealth() {
-  const res = await fetch(`${BASE_URL}/health`);
+  const res = await fetch(`${BASE_URL}/api/health`);
   if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
   return res.json();
 }

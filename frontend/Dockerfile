@@ -18,13 +18,17 @@ RUN npm run build
 # Stage 2: Serve the app with Nginx
 FROM nginx:alpine as production-stage
 
-# Copy custom Nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV APP_PORT=80
+ENV BACKEND_URL=http://backend:8000
+ENV NGINX_ENVSUBST_FILTER="APP_PORT|BACKEND_URL"
+
+# Copy custom Nginx configuration template
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy built assets from the previous stage
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 
-# Expose port 80
+# Expose port from env (using the same default as the ENV)
 EXPOSE 80
 
 # Run Nginx in foreground
