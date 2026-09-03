@@ -119,10 +119,11 @@ _INJECT_JS = """
           });
       }
 
+      const refParam = '&ref=' + encodeURIComponent(document.baseURI || window.location.href);
       if (typeof input === 'string' && shouldProxy(absUrl)) {
-          arguments[0] = proxyUrl + encodeURIComponent(absUrl);
+          arguments[0] = proxyUrl + encodeURIComponent(absUrl) + refParam;
       } else if (input instanceof Request && shouldProxy(absUrl)) {
-          arguments[0] = new Request(proxyUrl + encodeURIComponent(absUrl), input);
+          arguments[0] = new Request(proxyUrl + encodeURIComponent(absUrl) + refParam, input);
       }
       return originalFetch.apply(this, arguments);
   };
@@ -140,8 +141,9 @@ _INJECT_JS = """
           return originalOpen.apply(this, [method, 'data:application/json,{}', ...Array.prototype.slice.call(arguments, 2)]);
       }
 
+      const refParam = '&ref=' + encodeURIComponent(document.baseURI || window.location.href);
       if (typeof url === 'string' && shouldProxy(absUrl)) {
-          url = proxyUrl + encodeURIComponent(absUrl);
+          url = proxyUrl + encodeURIComponent(absUrl) + refParam;
       }
       return originalOpen.apply(this, [method, url, ...Array.prototype.slice.call(arguments, 2)]);
   };

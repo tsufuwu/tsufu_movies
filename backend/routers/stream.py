@@ -118,7 +118,8 @@ async def proxy_embed(
 @router.get("/fetch")
 async def fetch_proxy(
     request: Request,
-    url: str = Query(...),
+    url: str = Query(..., description="Target media or stream URL to fetch"),
+    ref: str | None = Query(None, description="Original referer URL from embed node"),
 ):
     """Proxy fetch requests to bypass Referer/CORS block from streamc.xyz"""
     # Chống leech băng thông từ domain lạ
@@ -132,9 +133,32 @@ async def fetch_proxy(
     if "entitlements.jwplayer.com" in url or "jwplayer.com/license" in url:
         return JSONResponse(content={}, status_code=200)
 
+    # Dynamic Referer & Origin resolution:
+    # 1. If target URL is on streamc.xyz (e.g. embed11, embed12, embed14...),
+    #    upstream node strictly requires Referer & Origin matching its own subdomain!
+    # 2. If client passed ref (embed node URL), use that ref for CDN media segments.
+    # 3. Otherwise, fallback to STREAMC_BASE.
+    parsed = urlparse(url)
+    target_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    if "streamc.xyz" in parsed.netloc:
+        upstream_referer = f"{target_origin}/"
+        upstream_origin = target_origin
+    elif ref and ref.startswith(("http://", "https://")):
+        upstream_referer = ref
+        upstream_origin = f"{urlparse(ref).scheme}://{urlparse(ref).netloc}"
+    else:
+        upstream_referer = f"{STREAMC_BASE}/"
+        upstream_origin = STREAMC_BASE
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": f"{STREAMC_BASE}/",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Referer": upstream_referer,
+        "Origin": upstream_origin,
     }
     try:
         client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
