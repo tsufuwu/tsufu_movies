@@ -66,9 +66,7 @@ _INJECT_JS = """
   };
 
   URL.revokeObjectURL = function(url) {
-      if (typeof url === 'string') {
-          blobStore.delete(url);
-      }
+      // Do not delete immediately to avoid race condition with async XHR/fetch loaders
       return originalRevokeObjectURL.apply(this, arguments);
   };
 
@@ -230,7 +228,9 @@ _INJECT_JS = """
               reader.onload = () => {
                   try {
                       Object.defineProperty(this, 'status', { value: 200, writable: false, configurable: true });
+                      Object.defineProperty(this, 'statusText', { value: 'OK', writable: false, configurable: true });
                       Object.defineProperty(this, 'readyState', { value: 4, writable: false, configurable: true });
+                      Object.defineProperty(this, 'responseURL', { value: this._blobUrl, writable: false, configurable: true });
                       let resData = reader.result;
                       if (responseType === 'text' || responseType === '') {
                           if (typeof resData !== 'string') {
@@ -243,11 +243,39 @@ _INJECT_JS = """
                       }
                   } catch(e) {}
 
+                  this.getAllResponseHeaders = () => 'content-type: ' + (blob.type || 'application/vnd.apple.mpegurl') + '\r\n';
+                  this.getResponseHeader = (name) => {
+                      if (!name) return null;
+                      const n = name.toLowerCase();
+                      if (n === 'content-type') return (blob.type || 'application/vnd.apple.mpegurl');
+                      if (n === 'content-length') return String(blob.size);
+                      return null;
+                  };
+
+                  if (typeof this.onreadystatechange === 'function') {
+                      try { this.onreadystatechange.call(this, new Event('readystatechange')); } catch(e) {}
+                  }
                   this.dispatchEvent(new Event('readystatechange'));
-                  this.dispatchEvent(new ProgressEvent('load', { loaded: blob.size, total: blob.size }));
-                  this.dispatchEvent(new ProgressEvent('loadend', { loaded: blob.size, total: blob.size }));
+
+                  if (typeof this.onprogress === 'function') {
+                      try { this.onprogress.call(this, new ProgressEvent('progress', { lengthComputable: true, loaded: blob.size, total: blob.size })); } catch(e) {}
+                  }
+                  this.dispatchEvent(new ProgressEvent('progress', { lengthComputable: true, loaded: blob.size, total: blob.size }));
+
+                  if (typeof this.onload === 'function') {
+                      try { this.onload.call(this, new ProgressEvent('load', { lengthComputable: true, loaded: blob.size, total: blob.size })); } catch(e) {}
+                  }
+                  this.dispatchEvent(new ProgressEvent('load', { lengthComputable: true, loaded: blob.size, total: blob.size }));
+
+                  if (typeof this.onloadend === 'function') {
+                      try { this.onloadend.call(this, new ProgressEvent('loadend', { lengthComputable: true, loaded: blob.size, total: blob.size })); } catch(e) {}
+                  }
+                  this.dispatchEvent(new ProgressEvent('loadend', { lengthComputable: true, loaded: blob.size, total: blob.size }));
               };
               reader.onerror = () => {
+                  if (typeof this.onerror === 'function') {
+                      try { this.onerror.call(this, new Event('error')); } catch(e) {}
+                  }
                   this.dispatchEvent(new Event('error'));
               };
 

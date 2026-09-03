@@ -123,6 +123,21 @@ async def proxy_embed(
     )
 
 
+# Global persistent HTTP client for streaming chunks (connection pooling)
+_stream_client: httpx.AsyncClient | None = None
+
+
+def get_stream_client() -> httpx.AsyncClient:
+    global _stream_client
+    if _stream_client is None or _stream_client.is_closed:
+        _stream_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+            follow_redirects=True,
+            limits=httpx.Limits(max_keepalive_connections=50, max_connections=200),
+        )
+    return _stream_client
+
+
 @router.get("/fetch")
 async def fetch_proxy(
     request: Request,
@@ -169,7 +184,7 @@ async def fetch_proxy(
         "Origin": upstream_origin,
     }
     try:
-        client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+        client = get_stream_client()
         req = client.build_request("GET", url, headers=headers)
         resp = await client.send(req, stream=True)
 
@@ -179,7 +194,6 @@ async def fetch_proxy(
                     yield chunk
             finally:
                 await resp.aclose()
-                await client.aclose()
 
         # Remove content-length to avoid ERR_CONTENT_LENGTH_MISMATCH
         allowed_headers = ["accept-ranges", "content-type", "content-range"]
