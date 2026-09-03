@@ -71,7 +71,6 @@ tsufu_movies/
 │   │   │   ├── hero.png              # Hình ảnh banner mặc định
 │   │   │   └── vite.svg              # Logo Vite
 │   │   ├── components/
-│   │   │   ├── CustomVideoPlayer.jsx # Wrapper tuỳ biến giao diện phát video
 │   │   │   ├── Footer.jsx            # Chân trang (Footer)
 │   │   │   ├── HeroBanner.jsx        # Banner phim nổi bật trên đầu trang chủ
 │   │   │   ├── LoadingSpinner.jsx    # Component hiệu ứng đang tải (Spinner / Skeleton)
@@ -79,8 +78,7 @@ tsufu_movies/
 │   │   │   ├── MovieRow.jsx          # Hàng trượt danh sách phim theo chủ đề
 │   │   │   ├── Navbar.jsx            # Thanh điều hướng đầu trang kèm thanh tìm kiếm realtime
 │   │   │   ├── Pagination.jsx        # Nút chuyển trang (Phân trang)
-│   │   │   ├── SmartVideoPlayer.jsx  # Trình phát thông minh (HLS.js + Sandboxed Adblock Iframe)
-│   │   │   └── VideoPlayer.jsx       # Component video player cơ sở
+│   │   │   └── SmartVideoPlayer.jsx  # Trình phát thông minh (HLS.js + Sandboxed Adblock Iframe)
 │   │   ├── pages/
 │   │   │   ├── CategoryPage.jsx      # Trang lọc theo loại phim (Phim lẻ, Phim bộ, Hoạt hình, TV Shows)
 │   │   │   ├── GenrePage.jsx         # Trang lọc theo thể loại và quốc gia
