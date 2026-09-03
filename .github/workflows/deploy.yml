@@ -51,7 +51,8 @@ jobs:
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
-          password: ${{ secrets.PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
           script: |
             # Di chuyển vào thư mục chứa code trên CyberPanel VPS
             cd /home/operator.cloudyez.com/public_html || exit
