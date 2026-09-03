@@ -42,9 +42,11 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Invoke deployment hook
+      - name: Call deploy webhook
+        if: github.event_name != 'pull_request'
         run: |
-          echo "Triggering deployment webhook..."
-          curl -X POST -H "Content-Type: application/json" \
-               -d '{"event":"deployment","repository":"appphim","tag":"latest"}' \
-               ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          if [[ -n "${{ secrets.DEPLOY_HOOK_URL }}" ]]; then 
+            curl -X GET "${{ secrets.DEPLOY_HOOK_URL }}?repo=${{ secrets.DOCKERHUB_USERNAME }}&name=appphim&tag=latest"
+          else
+            echo "No deploy hook URL set, skipping."
+          fi
