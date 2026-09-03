@@ -25,6 +25,12 @@ Dự án này áp dụng mô hình **Microservices cơ bản**, bao gồm 2 ph�
 
 ### Cách 1: Chạy bằng Docker (Khuyến nghị)
 Cách dễ nhất để khởi động toàn bộ hệ thống (cả Frontend và Backend) ở local là sử dụng Docker Compose.
+
+**Bước chuẩn bị (Môi trường)**:
+1. Vào thư mục `/backend` và copy file `.env.example` thành `.env`.
+2. Vào thư mục `/frontend` và copy file `.env.example` thành `.env`.
+*(Bạn có thể tùy chỉnh lại các biến môi trường trong file `.env` nếu cần thiết).*
+
 1. Mở terminal tại thư mục gốc dự án.
 2. Chạy lệnh:
    ```bash
@@ -38,7 +44,8 @@ Cách dễ nhất để khởi động toàn bộ hệ thống (cả Frontend v�
 
 #### Chạy Backend
 1. Mở terminal, di chuyển vào thư mục `/backend`.
-2. Tạo môi trường ảo và cài đặt thư viện:
+2. Khởi tạo file biến môi trường (copy `.env.example` sang `.env`) và tùy chỉnh lại nếu cần.
+3. Tạo môi trường ảo và cài đặt thư viện:
    ```bash
    python -m venv venv
    source venv/Scripts/activate  # (Trên Windows)
@@ -53,7 +60,8 @@ Cách dễ nhất để khởi động toàn bộ hệ thống (cả Frontend v�
 
 #### Chạy Frontend
 1. Mở một terminal khác, di chuyển vào thư mục `/frontend`.
-2. Cài đặt các gói thư viện Node:
+2. Khởi tạo file biến môi trường (copy `.env.example` sang `.env`).
+3. Cài đặt các gói thư viện Node:
    ```bash
    npm install
    ```
