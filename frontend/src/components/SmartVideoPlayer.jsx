@@ -19,17 +19,19 @@ function formatTime(seconds) {
 }
 
 // ── HLS Player ───────────────────────────────────────────────────────────────
-function HlsPlayer({ src, initialTime = 0, onProgress }) {
+function HlsPlayer({ src, initialTime = 0, onProgress, onFatalError }) {
   const videoRef = useRef(null)
   const hlsRef = useRef(null)
   const [resumed, setResumed] = useState(false)
   const hasSeeked = useRef(false)
+  const retryCount = useRef(0)
 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !src) return
     hlsRef.current?.destroy()
     hasSeeked.current = false
+    retryCount.current = 0
 
     const seekToInitial = () => {
       if (!hasSeeked.current && initialTime > 5) {
@@ -44,24 +46,75 @@ function HlsPlayer({ src, initialTime = 0, onProgress }) {
     }
 
     if (Hls.isSupported()) {
-      const hls = new Hls()
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        manifestLoadingTimeOut: 20000,
+        manifestLoadingMaxRetry: 5,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingTimeOut: 20000,
+        levelLoadingMaxRetry: 5,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingTimeOut: 25000,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        startFragPrefetch: true,
+      })
       hlsRef.current = hls
       hls.loadSource(src)
       hls.attachMedia(video)
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         seekToInitial()
         video.play().catch(() => {})
+      })
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        console.warn('[HlsPlayer] HLS Event Error:', data.type, data.details)
+
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              if (retryCount.current < 4) {
+                retryCount.current += 1
+                console.warn(`[HlsPlayer] Fatal network error. Attempting recovery #${retryCount.current}...`)
+                setTimeout(() => {
+                  hls.startLoad()
+                }, 1000)
+              } else {
+                console.error('[HlsPlayer] Max network retries reached. Triggering fallback...')
+                hls.destroy()
+                onFatalError?.()
+              }
+              break
+
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn('[HlsPlayer] Fatal media error. Recovering media...')
+              hls.recoverMediaError()
+              break
+
+            default:
+              console.error('[HlsPlayer] Unrecoverable fatal error, destroying player:', data)
+              hls.destroy()
+              onFatalError?.()
+              break
+          }
+        }
       })
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src
       video.addEventListener('loadedmetadata', seekToInitial, { once: true })
       video.play().catch(() => {})
     }
+
     return () => {
       hlsRef.current?.destroy()
       hlsRef.current = null
     }
-  }, [src, initialTime])
+  }, [src, initialTime, onFatalError])
 
   const handleTimeUpdate = () => {
     const video = videoRef.current
@@ -120,21 +173,36 @@ function Badge({ label, color }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function SmartVideoPlayer({ m3u8Url, embedUrl, initialTime = 0, onProgress }) {
-  // Ưu tiên 1: HLS direct
-  if (m3u8Url) {
+  const [hlsFailed, setHlsFailed] = useState(false)
+
+  // Reset fallback state when m3u8Url changes
+  useEffect(() => {
+    setHlsFailed(false)
+  }, [m3u8Url])
+
+  // Ưu tiên 1: HLS direct (khi chưa bị fatal error)
+  if (m3u8Url && !hlsFailed) {
     return (
       <div className="relative w-full aspect-video bg-black overflow-hidden">
         <Badge label="HLS Direct" color="bg-green-600" />
-        <HlsPlayer src={m3u8Url} initialTime={initialTime} onProgress={onProgress} />
+        <HlsPlayer
+          src={m3u8Url}
+          initialTime={initialTime}
+          onProgress={onProgress}
+          onFatalError={() => setHlsFailed(true)}
+        />
       </div>
     )
   }
 
-  // Ưu tiên 2: Embed iframe với sandbox để chặn popup ads
+  // Ưu tiên 2: Embed iframe với sandbox để chặn popup ads (hoặc fallback nếu HLS lỗi)
   if (embedUrl) {
     return (
       <div className="relative w-full aspect-video bg-black overflow-hidden">
-        <Badge label="Embed" color="bg-yellow-600" />
+        <Badge
+          label={hlsFailed ? "Embed Fallback" : "Embed"}
+          color={hlsFailed ? "bg-amber-600" : "bg-yellow-600"}
+        />
         <iframe
           key={embedUrl}
           src={embedUrl}

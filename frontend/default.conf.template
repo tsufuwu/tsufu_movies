@@ -3,6 +3,7 @@
 # ==============================================================================
 limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
 limit_req_zone $binary_remote_addr zone=search_limit:10m rate=2r/s;
+limit_req_zone $binary_remote_addr zone=stream_limit:10m rate=50r/s;
 limit_req_status 429;
 
 # ==============================================================================
@@ -79,7 +80,7 @@ server {
     # 3. Video Stream Proxy: Tắt buffering để stream mượt, không cache video
     # ==========================================================================
     location /api/stream/ {
-        limit_req zone=api_limit burst=20 nodelay;
+        limit_req zone=stream_limit burst=100 nodelay;
 
         proxy_pass ${BACKEND_URL};
         proxy_http_version 1.1;

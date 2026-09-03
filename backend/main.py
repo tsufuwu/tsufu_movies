@@ -80,7 +80,13 @@ async def lifespan(app: FastAPI):
     # Log non-sensitive configurations at boot
     log_boot_configuration()
     yield
-    # Shutdown: cleanly close Redis if initialized
+    # Shutdown: cleanly close Redis and stream client if initialized
+    try:
+        from routers.stream import _stream_client
+        if _stream_client and not _stream_client.is_closed:
+            await _stream_client.aclose()
+    except Exception:
+        pass
     await cache.close()
 
 

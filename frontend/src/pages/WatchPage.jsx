@@ -79,10 +79,18 @@ export default function WatchPage() {
     
     try {
       if (ep.m3u8) {
-        // Có sẵn link direct m3u8 từ API nguồn
-        setCurrentEpData({ m3u8: ep.m3u8, embed: null })
+        // Có sẵn link direct m3u8 từ API nguồn -> resolve để rewrite playlist & thêm CORS qua proxy
+        try {
+          const resolved = await resolveStream(ep.m3u8)
+          setCurrentEpData({
+            m3u8: resolved?.m3u8 || ep.m3u8,
+            embed: ep.embed || null,
+          })
+        } catch {
+          setCurrentEpData({ m3u8: ep.m3u8, embed: ep.embed || null })
+        }
       } else if (ep.embed) {
-        // Gọi server của mình để proxy link embed (tránh lỗi từ chối kết nối / chặn ads)
+        // Gọi server của mình để phân giải m3u8 hoặc proxy link embed
         const resolved = await resolveStream(ep.embed)
         setCurrentEpData({
           m3u8: resolved.m3u8 || null,

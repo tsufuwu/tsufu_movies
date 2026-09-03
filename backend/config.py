@@ -27,7 +27,7 @@ CORS_ORIGINS = [origin.strip() for origin in _cors.split(",") if origin.strip()]
 STREAMC_BASE = os.getenv("STREAMC_BASE", "https://streamc.xyz")
 HTTP_TIMEOUT = float(os.getenv("HTTP_TIMEOUT", "15.0"))
 
-_allowed_proxy_domains = os.getenv("ALLOWED_PROXY_DOMAINS", "streamc.xyz,hihihoho4.top,hihihoho.top")
+_allowed_proxy_domains = os.getenv("ALLOWED_PROXY_DOMAINS", "streamc.xyz,hihihoho,hihihoho4.top,hihihoho3.top,hihihoho.top,nguonc.com,phim.nguonc.com")
 ALLOWED_PROXY_DOMAINS = [d.strip() for d in _allowed_proxy_domains.split(",") if d.strip()]
 
 # ── Security Hardening Configurations ──────────────────────────────────────────

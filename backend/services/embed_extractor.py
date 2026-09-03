@@ -280,6 +280,12 @@ _INJECT_JS = """
 """
 
 
+APPLE_USER_AGENT = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+)
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def resolve_stream(embed_url: str) -> dict:
@@ -288,31 +294,31 @@ async def resolve_stream(embed_url: str) -> dict:
 
     Returns dict:
       {
-        "m3u8":      str | None,   # direct HLS URL nếu tìm được
-        "proxy_url": str | None,   # URL nội bộ để gọi /api/stream/proxy
-        "embed_url": str,          # embed URL gốc (fallback cuối)
+        "m3u8":      str | None,   # direct HLS URL (hoặc proxy playlist)
+        "proxy_url": str | None,   # URL nội bộ để gọi /api/stream/proxy (iframe fallback)
+        "embed_url": str,          # embed URL gốc
         "source":    str           # "m3u8" | "proxy" | "embed"
       }
 
     Chiến lược:
-      - streamc.xyz dùng AES-CBC encrypt cho m3u8 URL (crypto.subtle trong player.js)
-        → Không thể decode server-side mà không chạy JS
-      - Do đó primary strategy là proxy HTML (strip anti-adblock, inject bypass JS)
-      - m3u8 resolve chỉ hoạt động nếu server redirect trực tiếp đến CDN
+      1. Decode data-obf từ embed HTML để lấy stream path.
+      2. Gửi request lấy plaintext M3U8 bằng Apple/Safari User-Agent.
+      3. Nếu thành công, trả về source="m3u8" để phát trực tiếp bằng Native HLS.
+      4. Nếu thất bại, fallback về iframe proxy đã strip ads (source="proxy").
     """
     result = {
         "m3u8": None,
         "proxy_url": None,
         "embed_url": embed_url,
-        "source": "proxy",  # default to proxy for streamc.xyz
+        "source": "proxy",
     }
 
     if not embed_url:
         result["source"] = "embed"
         return result
 
-    # Proxy là primary — luôn set proxy_url
-    result["proxy_url"] = embed_url  # router sẽ wrap thành /api/stream/proxy?url=...
+    # Proxy iframe luôn sẵn sàng làm fallback an toàn
+    result["proxy_url"] = embed_url
 
     try:
         html = await _fetch_embed_html(embed_url)
@@ -321,9 +327,8 @@ async def resolve_stream(embed_url: str) -> dict:
             result["proxy_url"] = None
             return result
 
-        # Best-effort: thử decode data-obf và resolve m3u8
-        # (chỉ thành công nếu server redirect trực tiếp, không qua JS decrypt)
-        stream_path = _decode_data_obf(html)
+        # Thử giải mã data-obf và trích xuất playlist M3U8 trực tiếp
+        stream_path = _decode_data_obf(html, embed_url)
         if stream_path:
             m3u8_url = await _resolve_m3u8(stream_path, embed_url)
             if m3u8_url:
@@ -375,11 +380,11 @@ async def _fetch_embed_html(embed_url: str) -> str | None:
     return None
 
 
-def _decode_data_obf(html: str) -> str | None:
+def _decode_data_obf(html: str, embed_url: str = "") -> str | None:
     """
-    Tìm data-obf attribute trong HTML và giải mã base64 JSON.
-    Format: {"sUb": "<stream_path>", "hD": "<hash>"}
-    Stream path dạng: eyJoIjoiOWQwODE0Nzd...  (nested base64)
+    Tìm data-obf attribute trong HTML và tạo stream URL tương ứng.
+    Format: {"sUb": "<sub_path>", "hD": "<hash>"}
+    Stream URL = f"{embed_origin}/{sUb}"
     """
     match = re.search(r'data-obf=["\']([A-Za-z0-9+/=]+)["\']', html)
     if not match:
@@ -391,18 +396,9 @@ def _decode_data_obf(html: str) -> str | None:
         if not s_ub:
             return None
 
-        # sUb là một JSON base64 lồng nhau
-        inner = json.loads(base64.b64decode(s_ub).decode("utf-8"))
-        stream_path = inner.get("o", "") or inner.get("path", "") or inner.get("url", "")
-
-        # Nếu không tìm thấy key cụ thể, dùng toàn bộ nếu là string
-        if not stream_path and isinstance(inner, str):
-            stream_path = inner
-
-        if stream_path and not stream_path.startswith("http"):
-            stream_path = STREAMC_BASE + ("" if stream_path.startswith("/") else "/") + stream_path
-
-        return stream_path or None
+        embed_origin = _get_origin(embed_url) if embed_url else STREAMC_BASE
+        stream_path = f"{embed_origin.rstrip('/')}/{s_ub.lstrip('/')}"
+        return stream_path
     except Exception as e:
         print(f"[embed_extractor] data-obf decode error: {e}")
         return None
@@ -410,32 +406,43 @@ def _decode_data_obf(html: str) -> str | None:
 
 async def _resolve_m3u8(stream_path: str, referer: str) -> str | None:
     """
-    Gọi stream_path để lấy redirect hoặc m3u8 URL thực.
-    streamc.xyz thường redirect 302 → CDN m3u8.
+    Gọi stream_path để lấy plaintext M3U8 URL thực.
+    Khi sử dụng Apple Safari User-Agent, StreamC trả về Plaintext HLS M3U8 (không mã hóa AES-GCM).
     """
     if not stream_path:
         return None
 
     try:
-        headers = {**HEADERS, "Referer": referer}
+        origin = _get_origin(referer)
+        headers = {
+            "User-Agent": APPLE_USER_AGENT,
+            "Referer": referer,
+            "Origin": origin,
+            "Accept": "*/*",
+        }
         async with httpx.AsyncClient(
             timeout=HTTP_TIMEOUT,
-            follow_redirects=False,  # Bắt redirect thủ công
+            follow_redirects=False,  # Kiểm tra redirect
         ) as client:
             resp = await client.get(stream_path, headers=headers)
 
-            # 302 redirect → URL cuối là m3u8
+            # 301/302 redirect → URL đích trực tiếp đến file m3u8
             if resp.status_code in (301, 302, 303, 307, 308):
                 location = resp.headers.get("location", "")
-                if location and (".m3u8" in location or "m3u8" in location):
+                if location:
                     return location
 
-            # 200 và content-type m3u8
+            # 200 OK và chứa playlist HLS plaintext hợp lệ
             if resp.status_code == 200:
+                text = resp.text
+                if "#EXTM3U" in text and "#ENC-AESGCM" not in text:
+                    # stream_path trả về trực tiếp nội dung M3U8
+                    return stream_path
+
                 ct = resp.headers.get("content-type", "")
-                url = str(resp.url)
-                if ".m3u8" in url or "mpegurl" in ct:
-                    return url
+                url_str = str(resp.url)
+                if ".m3u8" in url_str or "mpegurl" in ct:
+                    return url_str
 
     except Exception as e:
         print(f"[embed_extractor] m3u8 resolve error: {e}")
