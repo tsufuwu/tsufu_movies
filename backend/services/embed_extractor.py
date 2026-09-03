@@ -52,6 +52,26 @@ _INJECT_JS = """
   Object.defineProperty(window, 'hasShownAds', { get: () => true, set: (v) => {} });
   Object.defineProperty(window, 'playerBlocked', { get: () => false, set: (v) => {} });
   
+  // In-memory Blob resolution to completely bypass LiteSpeed CSP connect-src * restriction
+  const blobStore = new Map();
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
+  URL.createObjectURL = function(blob) {
+      const url = originalCreateObjectURL.apply(this, arguments);
+      if (blob && (blob instanceof Blob || blob instanceof File)) {
+          blobStore.set(url, blob);
+      }
+      return url;
+  };
+
+  URL.revokeObjectURL = function(url) {
+      if (typeof url === 'string') {
+          blobStore.delete(url);
+      }
+      return originalRevokeObjectURL.apply(this, arguments);
+  };
+
   // Origin của node embed (được inject động từ backend)
   const embedOrigin = "__EMBED_ORIGIN__";
 
@@ -146,6 +166,18 @@ _INJECT_JS = """
       let urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
       let absUrl = resolveTargetUrl(urlStr);
 
+      // In-memory Blob resolution: bypass LiteSpeed CSP connect-src *
+      if (absUrl.startsWith('blob:')) {
+          const blob = blobStore.get(absUrl);
+          if (blob) {
+              return new Response(blob, {
+                  status: 200,
+                  statusText: 'OK',
+                  headers: { 'Content-Type': blob.type || 'application/octet-stream' }
+              });
+          }
+      }
+
       // Mock JWPlayer entitlements & telemetry with 200 OK directly in browser
       if (isJwLicenseOrTelemetry(absUrl)) {
           return new Response(JSON.stringify({}), {
@@ -170,6 +202,13 @@ _INJECT_JS = """
       let absUrl = resolveTargetUrl(url);
       this._interceptUrl = absUrl;
 
+      // In-memory Blob request bypass: don't let browser's CSP block blob:
+      if (absUrl.startsWith('blob:')) {
+          this._isBlobRequest = true;
+          this._blobUrl = absUrl;
+          return originalOpen.apply(this, [method, 'data:application/octet-stream,', ...Array.prototype.slice.call(arguments, 2)]);
+      }
+
       if (isJwLicenseOrTelemetry(absUrl)) {
           this._isJwLicense = true;
           return originalOpen.apply(this, [method, 'data:application/json,{}', ...Array.prototype.slice.call(arguments, 2)]);
@@ -183,6 +222,44 @@ _INJECT_JS = """
   };
 
   XMLHttpRequest.prototype.send = function(body) {
+      if (this._isBlobRequest) {
+          const blob = blobStore.get(this._blobUrl);
+          if (blob) {
+              const reader = new FileReader();
+              const responseType = this.responseType;
+              reader.onload = () => {
+                  try {
+                      Object.defineProperty(this, 'status', { value: 200, writable: false, configurable: true });
+                      Object.defineProperty(this, 'readyState', { value: 4, writable: false, configurable: true });
+                      let resData = reader.result;
+                      if (responseType === 'text' || responseType === '') {
+                          if (typeof resData !== 'string') {
+                              resData = new TextDecoder().decode(resData);
+                          }
+                          Object.defineProperty(this, 'responseText', { value: resData, writable: false, configurable: true });
+                          Object.defineProperty(this, 'response', { value: resData, writable: false, configurable: true });
+                      } else {
+                          Object.defineProperty(this, 'response', { value: resData, writable: false, configurable: true });
+                      }
+                  } catch(e) {}
+
+                  this.dispatchEvent(new Event('readystatechange'));
+                  this.dispatchEvent(new ProgressEvent('load', { loaded: blob.size, total: blob.size }));
+                  this.dispatchEvent(new ProgressEvent('loadend', { loaded: blob.size, total: blob.size }));
+              };
+              reader.onerror = () => {
+                  this.dispatchEvent(new Event('error'));
+              };
+
+              if (responseType === 'text' || responseType === '') {
+                  reader.readAsText(blob);
+              } else {
+                  reader.readAsArrayBuffer(blob);
+              }
+              return;
+          }
+      }
+
       if (this._isJwLicense) {
           try {
               Object.defineProperty(this, 'status', { value: 200, writable: false });

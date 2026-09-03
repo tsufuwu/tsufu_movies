@@ -116,6 +116,9 @@ async def proxy_embed(
                 "img-src * data: blob:;"
             ),
             "X-Frame-Options": "SAMEORIGIN",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
         },
     )
 
