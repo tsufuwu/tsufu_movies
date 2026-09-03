@@ -12,10 +12,12 @@ IS_PRODUCTION = ENVIRONMENT.lower() == "production"
 # Upstream API
 NGUONC_BASE_URL = os.getenv("NGUONC_BASE_URL", "https://phim.nguonc.com/api")
 
-# Caching (seconds)
-CACHE_TTL_LIST = int(os.getenv("CACHE_TTL_LIST", "300"))
-CACHE_TTL_DETAIL = int(os.getenv("CACHE_TTL_DETAIL", "1800"))
-CACHE_TTL_SEARCH = int(os.getenv("CACHE_TTL_SEARCH", "180"))
+# Caching & Redis Backend
+REDIS_URL = os.getenv("REDIS_URL", None)
+CACHE_TTL_LIST = int(os.getenv("CACHE_TTL_LIST", "900"))      # 15 minutes
+CACHE_TTL_DETAIL = int(os.getenv("CACHE_TTL_DETAIL", "1800")) # 30 minutes
+CACHE_TTL_SEARCH = int(os.getenv("CACHE_TTL_SEARCH", "300"))   # 5 minutes
+CACHE_TTL_STREAM = int(os.getenv("CACHE_TTL_STREAM", "600"))   # 10 minutes
 
 # CORS
 _cors = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000")

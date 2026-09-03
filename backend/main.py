@@ -1,6 +1,7 @@
 """FastAPI backend for App Phim."""
 import sys
 import os
+from contextlib import asynccontextmanager
 
 # Add backend dir to path so imports work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -8,14 +9,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
+from services.cache import cache
 from routers.session import router as session_router
 from routers.movies import router as movies_router
 from routers.stream import router as stream_router
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    yield
+    # Shutdown: cleanly close Redis if initialized
+    await cache.close()
+
+
 app = FastAPI(
     title="App Phim API",
-    description="Backend API for movie streaming app with security hardening",
+    description="Backend API for movie streaming app with security hardening & dual caching",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Cấu hình CORS:
@@ -43,7 +55,11 @@ async def root():
 @app.get("/api/health")
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "app-phim-backend"}
+    return {
+        "status": "ok",
+        "service": "app-phim-backend",
+        "cache_backend": "redis" if cache.is_redis_active() else "in-memory-ttl",
+    }
 
 
 if __name__ == "__main__":

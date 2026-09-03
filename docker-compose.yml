@@ -1,4 +1,3 @@
-
 services:
   backend:
     image: ghcr.io/tsufuwu/tsufu_movies-backend:latest
@@ -11,11 +10,11 @@ services:
       - "8000"
     environment:
       - ENVIRONMENT=production
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     networks:
       - app-net
-    # Uncomment and modify if you need specific volumes (e.g. for uploads or SQLite)
-    # volumes:
-    #   - ./data:/app/data
+    depends_on:
+      - redis
 
   frontend:
     image: ghcr.io/tsufuwu/tsufu_movies-frontend:latest
@@ -30,10 +29,26 @@ services:
       - APP_PORT=${APP_PORT:-80}
       - BACKEND_URL=http://backend:8000
       - NGINX_ENVSUBST_FILTER=APP_PORT|BACKEND_URL
+    volumes:
+      - nginx-cache:/var/cache/nginx
     depends_on:
       - backend
     networks:
       - app-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: appphim_redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-net
+
+volumes:
+  redis-data:
+  nginx-cache:
 
 networks:
   app-net:

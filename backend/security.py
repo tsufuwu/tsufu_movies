@@ -16,6 +16,7 @@ from config import (
     IS_PRODUCTION,
     CORS_ORIGINS,
 )
+from services.cache import cache
 
 
 def get_client_ip(request: Request) -> str:
@@ -95,6 +96,32 @@ def verify_session_token(token: str, client_ip: str) -> bool:
     return hmac.compare_digest(sig, fallback_sig)
 
 
+async def verify_session_active(token: str, client_ip: str) -> bool:
+    """Verify session token against cache (primary) and cryptographic signature (fallback)."""
+    if not ENABLE_SESSION_CHECK:
+        return True
+    if not token or not isinstance(token, str):
+        return False
+
+    # 1. Check cache first
+    cached_session = await cache.get(f"session:{token}")
+    if cached_session is not None:
+        return True
+
+    # 2. Cryptographic signature check fallback (e.g. across cache restart)
+    if verify_session_token(token, client_ip):
+        try:
+            parts = token.split(".")
+            expires_at = int(parts[1])
+            remaining_ttl = max(1, expires_at - int(time.time()))
+            await cache.set(f"session:{token}", {"ip": client_ip, "verified_at": time.time()}, ttl=remaining_ttl)
+        except Exception:
+            pass
+        return True
+
+    return False
+
+
 async def require_session(request: Request) -> bool:
     """FastAPI dependency to enforce active ephemeral session."""
     if not ENABLE_SESSION_CHECK:
@@ -107,7 +134,7 @@ async def require_session(request: Request) -> bool:
         token = request.headers.get("x-session-token")
 
     client_ip = get_client_ip(request)
-    if not token or not verify_session_token(token, client_ip):
+    if not token or not await verify_session_active(token, client_ip):
         raise HTTPException(
             status_code=401,
             detail="Session invalid or expired. Handshake required at /api/v1/session/init"

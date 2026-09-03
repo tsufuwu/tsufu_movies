@@ -1,6 +1,6 @@
 """Service layer for calling the NguonC API."""
 import httpx
-from cache import cache
+from services.cache import cache
 from config import NGUONC_BASE_URL, HTTP_TIMEOUT, CACHE_TTL_LIST, CACHE_TTL_DETAIL, CACHE_TTL_SEARCH
 from schemas import (
     MovieSummary, Pagination, PaginatedMovies,
@@ -122,67 +122,66 @@ def _clean_html(text: str) -> str:
 
 async def get_latest_movies(page: int = 1) -> PaginatedMovies:
     cache_key = f"latest:{page}"
-    cached = cache.get(cache_key)
+    cached = await cache.get(cache_key)
     if cached:
         return cached
     data = await _fetch_json(f"/films/phim-moi-cap-nhat", {"page": page})
     result = _parse_movie_list(data)
-    cache.set(cache_key, result, CACHE_TTL_LIST)
+    await cache.set(cache_key, result, CACHE_TTL_LIST)
     return result
 
 
 async def get_movies_by_type(movie_type: str, page: int = 1) -> PaginatedMovies:
     cache_key = f"type:{movie_type}:{page}"
-    cached = cache.get(cache_key)
+    cached = await cache.get(cache_key)
     if cached:
         return cached
     data = await _fetch_json(f"/films/danh-sach/{movie_type}", {"page": page})
     result = _parse_movie_list(data)
-    cache.set(cache_key, result, CACHE_TTL_LIST)
+    await cache.set(cache_key, result, CACHE_TTL_LIST)
     return result
 
 
 async def get_movies_by_genre(genre_slug: str, page: int = 1) -> PaginatedMovies:
     cache_key = f"genre:{genre_slug}:{page}"
-    cached = cache.get(cache_key)
+    cached = await cache.get(cache_key)
     if cached:
         return cached
     data = await _fetch_json(f"/films/the-loai/{genre_slug}", {"page": page})
     result = _parse_movie_list(data)
-    cache.set(cache_key, result, CACHE_TTL_LIST)
+    await cache.set(cache_key, result, CACHE_TTL_LIST)
     return result
 
 
 async def get_movies_by_country(country_slug: str, page: int = 1) -> PaginatedMovies:
     cache_key = f"country:{country_slug}:{page}"
-    cached = cache.get(cache_key)
+    cached = await cache.get(cache_key)
     if cached:
         return cached
     data = await _fetch_json(f"/films/quoc-gia/{country_slug}", {"page": page})
     result = _parse_movie_list(data)
-    cache.set(cache_key, result, CACHE_TTL_LIST)
+    await cache.set(cache_key, result, CACHE_TTL_LIST)
     return result
 
 
 async def search_movies(keyword: str, page: int = 1) -> PaginatedMovies:
     cache_key = f"search:{keyword}:{page}"
-    cached = cache.get(cache_key)
+    cached = await cache.get(cache_key)
     if cached:
         return cached
     data = await _fetch_json("/films/search", {"keyword": keyword, "page": page})
     result = _parse_movie_list(data)
-    cache.set(cache_key, result, CACHE_TTL_SEARCH)
+    await cache.set(cache_key, result, CACHE_TTL_SEARCH)
     return result
 
 
 async def get_movie_detail(slug: str) -> MovieDetailResponse:
     cache_key = f"detail:{slug}"
-    cached = cache.get(cache_key)
+    cached = await cache.get(cache_key)
     if cached:
         return cached
     data = await _fetch_json(f"/film/{slug}")
     result = _parse_movie_detail(data)
-
-    cache.set(cache_key, result, CACHE_TTL_DETAIL)
+    await cache.set(cache_key, result, CACHE_TTL_DETAIL)
     return result
 

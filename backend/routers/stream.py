@@ -10,7 +10,9 @@ from config import (
     STREAMC_BASE,
     ENABLE_STREAM_SIGNATURE,
     ENABLE_SESSION_CHECK,
+    CACHE_TTL_STREAM,
 )
+from services.cache import cache
 from security import (
     require_session,
     sign_stream_url,
@@ -18,6 +20,7 @@ from security import (
     validate_referer_and_fetch_site,
     get_client_ip,
     verify_session_token,
+    verify_session_active,
 )
 
 router = APIRouter(prefix="/api/stream", tags=["stream"])
@@ -43,10 +46,17 @@ async def resolve_embed(
     if not url:
         raise HTTPException(status_code=400, detail="url is required")
 
-    result = await resolve_stream(url)
+    cache_key = f"resolve:{url}"
+    cached_result = await cache.get(cache_key)
+    if cached_result:
+        result = dict(cached_result)
+    else:
+        result = await resolve_stream(url)
+        if result and (result.get("m3u8") or result.get("proxy_url")):
+            await cache.set(cache_key, result, ttl=CACHE_TTL_STREAM)
 
     # Nếu source là proxy, build proxy_url hoàn chỉnh và ký HMAC bảo mật
-    if result["source"] == "proxy" and result["proxy_url"]:
+    if result.get("source") == "proxy" and result.get("proxy_url"):
         sig_data = sign_stream_url(url)
         quoted_url = urllib.parse.quote(url)
         if ENABLE_STREAM_SIGNATURE:
@@ -85,7 +95,7 @@ async def proxy_embed(
     if ENABLE_SESSION_CHECK:
         token = request.cookies.get("tsufu_session") or request.headers.get("x-session-token")
         client_ip = get_client_ip(request)
-        if not token or not verify_session_token(token, client_ip):
+        if not token or not await verify_session_active(token, client_ip):
             raise HTTPException(status_code=401, detail="Session expired. Please refresh the page.")
 
     # 4. Kiểm tra domain được phép proxy để tránh open proxy
