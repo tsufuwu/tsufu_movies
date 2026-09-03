@@ -1,4 +1,5 @@
-const API_BASE = '/api/movies';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = `${BASE_URL}/api/movies`;
 
 async function fetchApi(endpoint) {
   const res = await fetch(`${API_BASE}${endpoint}`);
@@ -52,7 +53,8 @@ export async function getMoviesByType(type, page = 1) {
  */
 export async function resolveStream(embedUrl) {
   const encoded = encodeURIComponent(embedUrl);
-  const res = await fetch(`/api/stream/resolve?url=${encoded}`);
+  const res = await fetch(`${BASE_URL}/api/stream/resolve?url=${encoded}`);
   if (!res.ok) throw new Error(`Stream resolve error: ${res.status}`);
   return res.json();
 }
+
