@@ -8,6 +8,7 @@ import { searchMovies } from '../api/movieApi'
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = searchParams.get('q') || ''
+  const hp = searchParams.get('_hp') || ''
   const page = parseInt(searchParams.get('page') || '1', 10)
   const [movies, setMovies] = useState([])
   const [totalPages, setTotalPages] = useState(1)
@@ -18,7 +19,7 @@ export default function SearchPage() {
     async function fetchResults() {
       setLoading(true)
       try {
-        const data = await searchMovies(query, page)
+        const data = await searchMovies(query, page, hp)
         setMovies(data.items || [])
         setTotalPages(data.paginate?.total_page || 1)
       } catch (err) {
@@ -28,7 +29,7 @@ export default function SearchPage() {
       }
     }
     fetchResults()
-  }, [query, page])
+  }, [query, page, hp])
 
   const handlePageChange = (newPage) => {
     setSearchParams({ q: query, page: newPage.toString() })

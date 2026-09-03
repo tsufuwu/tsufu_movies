@@ -1,9 +1,11 @@
 """Movie API endpoints."""
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends
 from services import nguonc
-from schemas import PaginatedMovies, MovieDetailResponse
+from schemas import PaginatedMovies, MovieDetailResponse, Pagination
+from security import require_session
+from config import ENABLE_HONEYPOT
 
-router = APIRouter(prefix="/api/movies", tags=["movies"])
+router = APIRouter(prefix="/api/movies", tags=["movies"], dependencies=[Depends(require_session)])
 
 
 @router.get("/latest", response_model=PaginatedMovies)
@@ -42,7 +44,24 @@ async def movies_by_country(country_slug: str, page: int = Query(1, ge=1)):
 
 
 @router.get("/search", response_model=PaginatedMovies)
-async def search(keyword: str = Query(..., min_length=1), page: int = Query(1, ge=1)):
+async def search(
+    keyword: str = Query(..., min_length=1),
+    page: int = Query(1, ge=1),
+    hp: str = Query(None, alias="_hp"),
+    website: str = Query(None),
+):
+    # Honeypot check: If bot filled the hidden honeypot field, drop silently
+    if ENABLE_HONEYPOT and (hp or website):
+        return PaginatedMovies(
+            status="success",
+            items=[],
+            paginate=Pagination(
+                current_page=page,
+                total_page=1,
+                total_items=0,
+                items_per_page=24,
+            ),
+        )
     return await nguonc.search_movies(keyword, page)
 
 

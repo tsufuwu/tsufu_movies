@@ -8,12 +8,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
+from routers.session import router as session_router
 from routers.movies import router as movies_router
 from routers.stream import router as stream_router
 
 app = FastAPI(
     title="App Phim API",
-    description="Backend API for movie streaming app",
+    description="Backend API for movie streaming app with security hardening",
     version="1.0.0",
 )
 
@@ -29,6 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(session_router)
 app.include_router(movies_router)
 app.include_router(stream_router)
 

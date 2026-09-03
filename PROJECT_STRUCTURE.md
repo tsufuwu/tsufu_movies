@@ -47,19 +47,21 @@ tsufu_movies/
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── movies.py                 # API endpoints danh sách phim, chi tiết, thể loại, tìm kiếm
+│   │   ├── session.py                # API handshake & xác thực ephemeral session token
 │   │   └── stream.py                 # API endpoints bóc tách luồng video, bypass quảng cáo & proxy
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── nguonc.py                 # Service tương tác trực tiếp với API phim.nguonc.com
 │   │   └── embed_extractor.py        # Thuật toán trích xuất m3u8 và lọc mã độc/ads từ iframe embed
-│   ├── .env.example                  # Template biến môi trường Backend
+│   ├── .env.example                  # Template biến môi trường Backend kèm Security Toggles
 │   ├── cache.py                      # Module bộ nhớ đệm RAM đơn giản kèm thời gian sống (TTL)
 │   ├── config.py                     # Đọc & parse cấu hình từ biến môi trường
 │   ├── Dockerfile                    # Đóng gói Backend container (python:3.11-slim)
 │   ├── main.py                       # Điểm khởi động FastAPI (CORS, Routers, Health Check)
 │   ├── README.md                     # Tài liệu hướng dẫn riêng cho Backend
 │   ├── requirements.txt              # Danh sách thư viện Python cần thiết
-│   └── schemas.py                    # Định nghĩa cấu trúc dữ liệu Pydantic (Request/Response validation)
+│   ├── schemas.py                    # Định nghĩa cấu trúc dữ liệu Pydantic (Request/Response validation)
+│   └── security.py                   # Lõi bảo mật 4 lớp: HMAC Session, Stream Signing, Anti-Hotlink, Honeypot
 ├── frontend/                         # Mã nguồn giao diện React + Vite
 │   ├── public/
 │   │   ├── favicon.svg               # Favicon biểu tượng trang web
