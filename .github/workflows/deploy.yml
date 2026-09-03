@@ -53,8 +53,8 @@ jobs:
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.PASSWORD }}
           script: |
-            # WARNING: Update the path below to the actual path where your repository is cloned on the CyberPanel VPS
-            cd /path/to/your/project/tsufu_movies || exit
+            # Di chuyển vào thư mục chứa code trên CyberPanel VPS
+            cd /home/operator.cloudyez.com/public_html || exit
             
             # Pull the latest code (for any docker-compose.yml updates)
             git pull origin main
