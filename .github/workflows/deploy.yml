@@ -13,10 +13,28 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      deploy_tag: ${{ steps.extract_version.outputs.tag }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Extract version from commit message
+        id: extract_version
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          echo "Commit Message: $COMMIT_MSG"
+          
+          # Tìm định dạng ({version}), ví dụ (v1.0.0) hoặc (1.2.3)
+          if [[ "$COMMIT_MSG" =~ \(([vV]?[0-9]+\.[0-9]+(\.[0-9]+)?(-\w+)?)\) ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            echo "Version found: $VERSION"
+          else
+            VERSION="latest"
+            echo "No version format ({version}) found. Defaulting to 'latest'."
+          fi
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -29,14 +47,14 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ env.IMAGE_NAME_BACKEND }}:latest
+          tags: ${{ env.IMAGE_NAME_BACKEND }}:${{ steps.extract_version.outputs.tag }}
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
-          tags: ${{ env.IMAGE_NAME_FRONTEND }}:latest
+          tags: ${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.extract_version.outputs.tag }}
 
   trigger-webhook:
     needs: build-and-push
@@ -46,7 +64,8 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           if [[ -n "${{ secrets.DEPLOY_HOOK_URL }}" ]]; then 
-            curl -X GET "${{ secrets.DEPLOY_HOOK_URL }}?repo=${{ secrets.DOCKERHUB_USERNAME }}&name=appphim&tag=latest"
+            echo "Triggering deploy for tag: ${{ needs.build-and-push.outputs.deploy_tag }}"
+            curl -X GET "${{ secrets.DEPLOY_HOOK_URL }}?repo=${{ secrets.DOCKERHUB_USERNAME }}&name=appphim&tag=${{ needs.build-and-push.outputs.deploy_tag }}"
           else
             echo "No deploy hook URL set, skipping."
           fi
