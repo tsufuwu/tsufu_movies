@@ -1,3 +1,23 @@
+# ==============================================================================
+# RATE LIMITING ZONES
+# ==============================================================================
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=search_limit:10m rate=2r/s;
+limit_req_status 429;
+
+# ==============================================================================
+# NGINX FAST MICRO-CACHING PATH
+# ==============================================================================
+proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=api_cache:10m max_size=100m inactive=10m use_temp_path=off;
+
+# Điều kiện bỏ qua Cache (Không cache endpoint session hoặc healthcheck)
+map $request_uri $skip_cache {
+    default 0;
+    ~*^/api/v1/session/init 1;
+    ~*^/api/session/ 1;
+    ~*^/api/health 1;
+}
+
 server {
     listen ${APP_PORT};
     server_name localhost;
@@ -15,8 +35,12 @@ server {
         return 301 /api/;
     }
 
-    # Reverse Proxy to Backend API
-    location /api/ {
+    # ==========================================================================
+    # 1. Endpoint Sinh Session: Luôn bypass cache, áp dụng api_limit
+    # ==========================================================================
+    location /api/v1/session/init {
+        limit_req zone=api_limit burst=20 nodelay;
+
         proxy_pass ${BACKEND_URL};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -24,10 +48,78 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Streaming support and reasonable timeouts for video/stream proxy
+        proxy_no_cache 1;
+        proxy_cache_bypass 1;
+        add_header X-Cache-Status "BYPASS" always;
+    }
+
+    # ==========================================================================
+    # 2. Endpoint Tìm Kiếm: Rate limit nghiêm ngặt (2r/s) & Cache 5 phút
+    # ==========================================================================
+    location /api/movies/search {
+        limit_req zone=search_limit burst=5 nodelay;
+
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_cache api_cache;
+        proxy_cache_key "$scheme$request_method$host$request_uri";
+        proxy_cache_valid 200 5m;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_no_cache $skip_cache;
+        proxy_cache_bypass $skip_cache;
+        add_header X-Cache-Status $upstream_cache_status always;
+    }
+
+    # ==========================================================================
+    # 3. Video Stream Proxy: Tắt buffering để stream mượt, không cache video
+    # ==========================================================================
+    location /api/stream/ {
+        limit_req zone=api_limit burst=20 nodelay;
+
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
         proxy_buffering off;
+        proxy_cache off;
         proxy_read_timeout 300s;
         proxy_connect_timeout 75s;
+        add_header X-Cache-Status "BYPASS" always;
+    }
+
+    # ==========================================================================
+    # 4. Reverse Proxy API Chung: Micro-caching dữ liệu phim 5 phút & Rate Limit
+    # ==========================================================================
+    location /api/ {
+        limit_req zone=api_limit burst=20 nodelay;
+
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Micro-caching cho danh sách phim, chi tiết phim, thể loại, quốc gia
+        proxy_cache api_cache;
+        proxy_cache_key "$scheme$request_method$host$request_uri";
+        proxy_cache_valid 200 5m;
+        proxy_cache_valid 404 1m;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_no_cache $skip_cache;
+        proxy_cache_bypass $skip_cache;
+        add_header X-Cache-Status $upstream_cache_status always;
+
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 15s;
     }
 
     # Error pages
