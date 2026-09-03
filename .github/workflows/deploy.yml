@@ -1,4 +1,4 @@
-name: Deploy to CyberPanel
+name: Build and Trigger Deploy
 
 on:
   push:
@@ -6,74 +6,45 @@ on:
       - main
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME_FRONTEND: ${{ github.repository }}-frontend
-  IMAGE_NAME_BACKEND: ${{ github.repository }}-backend
+  REGISTRY: docker.io
+  IMAGE_NAME_FRONTEND: ${{ secrets.DOCKERHUB_USERNAME }}/appphim-frontend
+  IMAGE_NAME_BACKEND: ${{ secrets.DOCKERHUB_USERNAME }}/appphim-backend
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to the Container registry
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}:latest
+          tags: ${{ env.IMAGE_NAME_BACKEND }}:latest
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
+          tags: ${{ env.IMAGE_NAME_FRONTEND }}:latest
 
-  deploy:
+  trigger-webhook:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            # Khởi tạo thư mục nếu chưa có
-            mkdir -p /home/operator.cloudyez.com/public_html
-            cd /home/operator.cloudyez.com/public_html || exit
-            
-            # Kiểm tra xem đây đã là thư mục git chưa
-            if [ -d ".git" ]; then
-              echo "Git repository found. Pulling latest code..."
-              git fetch --all
-              git reset --hard origin/main
-              git pull origin main
-            else
-              echo "Git repository not found. Initializing..."
-              git init
-              git remote add origin https://github.com/tsufuwu/tsufu_movies.git
-              git fetch
-              git checkout -t origin/main -f
-            fi
-            
-            # Pull the latest docker images from GHCR
-            docker compose pull
-            
-            # Restart the services
-            docker compose up -d
+      - name: Invoke deployment hook
+        run: |
+          echo "Triggering deployment webhook..."
+          curl -X POST -H "Content-Type: application/json" \
+               -d '{"event":"deployment","repository":"appphim","tag":"latest"}' \
+               ${{ secrets.DEPLOY_WEBHOOK_URL }}
