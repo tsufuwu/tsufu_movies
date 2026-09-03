@@ -9,14 +9,17 @@
 
 ## Cài đặt và Chạy thử (Local)
 
-### Cách 1: Chạy bằng Docker Compose (Khuyến nghị)
+### Cách 1: Chạy 1-click cho Windows
+Di chuyển ra thư mục gốc (`d:\appphim`) và nháy đúp vào file `start.bat`. File này sẽ tự động cài đặt và chạy cả 2 dịch vụ Frontend & Backend trong 2 cửa sổ khác nhau.
+
+### Cách 2: Chạy bằng Docker Compose (Khuyến nghị nếu có Docker)
 Di chuyển ra thư mục gốc của dự án (`d:\appphim`) và chạy lệnh sau để khởi động cả Frontend và Backend:
 ```bash
 docker-compose up -d --build
 ```
 Sau đó truy cập: `http://localhost:3000`
 
-### Cách 2: Chạy thủ công
+### Cách 3: Chạy thủ công
 1. Mở terminal tại thư mục `frontend/`
 2. Cài đặt các gói phụ thuộc (dependencies):
    ```bash
