@@ -1,4 +1,5 @@
 """Service layer for calling the NguonC API."""
+import asyncio
 import httpx
 from services.cache import cache
 from config import NGUONC_BASE_URL, HTTP_TIMEOUT, CACHE_TTL_LIST, CACHE_TTL_DETAIL, CACHE_TTL_SEARCH
@@ -176,12 +177,68 @@ async def search_movies(keyword: str, page: int = 1) -> PaginatedMovies:
 
 
 async def get_movie_detail(slug: str) -> MovieDetailResponse:
+    from services.kkphim import get_kkphim_episodes
+
     cache_key = f"detail:{slug}"
     cached = await cache.get(cache_key)
     if cached:
         return cached
-    data = await _fetch_json(f"/film/{slug}")
-    result = _parse_movie_detail(data)
+
+    # Call NguonC and KKPhim in parallel
+    nguonc_task = asyncio.create_task(_fetch_json(f"/film/{slug}"))
+    kk_task = asyncio.create_task(get_kkphim_episodes(slug))  # will use title later if needed
+
+    try:
+        raw_data = await nguonc_task
+        nguonc_ok = True
+    except Exception:
+        raw_data = {}
+        nguonc_ok = False
+
+    result = _parse_movie_detail(raw_data) if nguonc_ok else MovieDetailResponse(status="error", movie=None)
+
+    # Wait for KKPhim
+    try:
+        kk_servers = await kk_task
+    except Exception:
+        kk_servers = []
+
+    # If KKPhim had no results but we know the title, retry with title
+    if not kk_servers and result.movie and result.movie.name:
+        try:
+            kk_servers = await get_kkphim_episodes(slug, title=result.movie.name)
+        except Exception:
+            kk_servers = []
+
+    # Merge: KKPhim VIP servers first, then NguonC servers (labelled as backup)
+    if result.movie and kk_servers:
+        nguonc_servers = result.movie.episodes or []
+        # Rename NguonC servers for clarity
+        labelled_nguonc = []
+        for srv in nguonc_servers:
+            if not srv.server_name.startswith("["):
+                from schemas import EpisodeServer as ES
+                labelled_nguonc.append(ES(
+                    server_name=f"[Dự Phòng] {srv.server_name}",
+                    items=srv.items,
+                ))
+            else:
+                labelled_nguonc.append(srv)
+        result.movie.episodes = kk_servers + labelled_nguonc
+
+    elif not result.movie and kk_servers:
+        # NguonC failed entirely but KKPhim has data — build a minimal MovieDetail
+        from schemas import MovieDetail as MD
+        result = MovieDetailResponse(
+            status="success",
+            movie=MD(
+                id=slug,
+                name=slug,
+                slug=slug,
+                episodes=kk_servers,
+            ),
+        )
+
     await cache.set(cache_key, result, CACHE_TTL_DETAIL)
     return result
 

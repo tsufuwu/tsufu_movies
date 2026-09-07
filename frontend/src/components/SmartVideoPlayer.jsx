@@ -210,7 +210,7 @@ export default function SmartVideoPlayer({ m3u8Url, embedUrl, initialTime = 0, o
           title="Movie Player"
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock"
           allow="autoplay; fullscreen; picture-in-picture"
-          referrerPolicy="no-referrer"
+          referrerPolicy="no-referrer-when-downgrade"
         />
       </div>
     )
