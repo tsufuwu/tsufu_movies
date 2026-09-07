@@ -126,28 +126,6 @@ export default function WatchPage() {
     })
   }
 
-  const handleServerChange = async (serverIdx) => {
-    if (!movie || !movie.episodes || !movie.episodes[serverIdx]) return
-    setActiveServer(serverIdx)
-
-    const newServer = movie.episodes[serverIdx]
-    // Try to find the matching episode by name, then by index
-    const currentIdx = movie.episodes[activeServer]?.items?.findIndex(ep => ep.name === currentEpName) ?? 0
-    const targetEp =
-      newServer.items.find(ep => ep.name === currentEpName) ||
-      newServer.items[Math.max(0, currentIdx)] ||
-      newServer.items[0]
-
-    if (targetEp) {
-      setCurrentEpName(targetEp.name)
-      const saved = watchHistory.getProgress(slug, targetEp.slug)
-      setInitialTime(saved && saved.isCurrentEpisode ? saved.currentTime : 0)
-      navigate(`/xem/${slug}/${targetEp.slug}`, { replace: true })
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      await loadStream(targetEp)
-    }
-  }
-
   const handleEpisodeClick = async (ep) => {
     setCurrentEpName(ep.name)
     const saved = watchHistory.getProgress(slug, ep.slug)
@@ -225,21 +203,15 @@ export default function WatchPage() {
         {/* Server Tabs */}
         {movie.episodes && movie.episodes.length > 1 && (
           <div className="flex flex-wrap gap-3 mb-6 mt-8" style={{ marginTop: "2rem" }}>
-            {movie.episodes.map((server, i) => {
-              const isVip = server.server_name.includes('[VIP]')
-              const isBackup = server.server_name.includes('[Dự Phòng]')
-              return (
-                <button
-                  key={i}
-                  onClick={() => handleServerChange(i)}
-                  className={activeServer === i ? 'btn-server-active' : 'btn-server'}
-                  title={isVip ? 'Direct HLS – chất lượng cao, không quảng cáo' : isBackup ? 'Nguồn dự phòng' : ''}
-                >
-                  {isVip && <span style={{ marginRight: '4px' }}>⚡</span>}
-                  {server.server_name}
-                </button>
-              )
-            })}
+            {movie.episodes.map((server, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveServer(i)}
+                className={activeServer === i ? 'btn-server-active' : 'btn-server'}
+              >
+                {server.server_name}
+              </button>
+            ))}
           </div>
         )}
 
