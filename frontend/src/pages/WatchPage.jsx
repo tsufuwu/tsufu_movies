@@ -247,11 +247,11 @@ export default function WatchPage() {
   return (
     <div className="pt-16">
       {/* ── Player Area (2-col on lg+) ─────────────────────────────────────── */}
-      <div className="lg:py-8">
-        <div className="max-w-[1450px] mx-auto flex flex-col lg:flex-row lg:gap-8 lg:px-8">
+      <div className="bg-black lg:py-8">
+        <div className="max-w-[1600px] mx-auto flex flex-col lg:flex-row lg:gap-12 lg:px-12">
 
-          {/* Player */}
-          <div className="lg:flex-1 min-w-0 bg-black lg:rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/5">
+          {/* Player (50%) */}
+          <div className="lg:flex-1 min-w-0 bg-black rounded-3xl overflow-hidden">
             {streamLoading ? (
               <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
                 <div className="text-center">
@@ -283,8 +283,8 @@ export default function WatchPage() {
             )}
           </div>
 
-          {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────── */}
-          <div className="hidden lg:flex flex-col w-[400px] xl:w-[460px] shrink-0 bg-[#080808] justify-center lg:rounded-3xl shadow-2xl ring-1 ring-white/5 relative">
+          {/* ── Desktop Sidebar (hidden on mobile, 50%) ──────────────────────────── */}
+          <div className="hidden lg:flex flex-col lg:flex-1 shrink-0 bg-black justify-center relative">
 
             {/* Inner wrapper – centered, padded symmetrically */}
             <div className="px-8 py-10 flex flex-col gap-7">
