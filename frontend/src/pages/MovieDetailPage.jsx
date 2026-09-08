@@ -64,43 +64,6 @@ export default function MovieDetailPage() {
               {movie.time && <span className="badge-lang">{movie.time}</span>}
             </div>
 
-            {/* Rating Scores – IMDB, Metacritic, Rotten Tomatoes */}
-            {(movie.imdb || movie.metacritic || movie.rotten_tomatoes) && (
-              <div className="flex flex-wrap items-center gap-3 mb-5" style={{ marginBottom: "1.25rem" }}>
-                {movie.imdb && (
-                  <div className="flex items-center gap-2 bg-[#F5C518]/10 border border-[#F5C518]/40 rounded-xl px-4 py-2.5 hover:bg-[#F5C518]/15 transition-colors">
-                    <div className="flex flex-col leading-none">
-                      <span className="text-[#F5C518] text-[10px] font-black tracking-widest uppercase">IMDb</span>
-                      <span className="text-white text-xl font-extrabold">{movie.imdb}</span>
-                    </div>
-                    <svg className="w-7 h-7 text-[#F5C518] opacity-80" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                    </svg>
-                  </div>
-                )}
-                {movie.metacritic && (
-                  <div className="flex items-center gap-2 bg-[#00CE7A]/10 border border-[#00CE7A]/40 rounded-xl px-4 py-2.5 hover:bg-[#00CE7A]/15 transition-colors">
-                    <div className="flex flex-col leading-none">
-                      <span className="text-[#00CE7A] text-[10px] font-black tracking-widest uppercase">Metacritic</span>
-                      <span className="text-white text-xl font-extrabold">{movie.metacritic}</span>
-                    </div>
-                    <div className="w-7 h-7 rounded-md bg-[#00CE7A] flex items-center justify-center text-white text-xs font-black">
-                      MC
-                    </div>
-                  </div>
-                )}
-                {movie.rotten_tomatoes && (
-                  <div className="flex items-center gap-2 bg-[#FA320A]/10 border border-[#FA320A]/40 rounded-xl px-4 py-2.5 hover:bg-[#FA320A]/15 transition-colors">
-                    <div className="flex flex-col leading-none">
-                      <span className="text-[#FA320A] text-[10px] font-black tracking-widest uppercase">Rotten Tomatoes</span>
-                      <span className="text-white text-xl font-extrabold">{movie.rotten_tomatoes}</span>
-                    </div>
-                    <span className="text-2xl">🍅</span>
-                  </div>
-                )}
-              </div>
-            )}
-
             {movie.categories && movie.categories.length > 0 && (
               <div className="flex flex-wrap gap-4 mb-6 text-sm" style={{ marginBottom: "1rem", lineHeight: "1.8" }}>
                 {movie.categories.map((cat, i) => (
