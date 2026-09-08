@@ -247,11 +247,11 @@ export default function WatchPage() {
   return (
     <div className="pt-16">
       {/* ── Player Area (2-col on lg+) ─────────────────────────────────────── */}
-      <div className="bg-black">
-        <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row">
+      <div className="lg:py-8">
+        <div className="max-w-[1450px] mx-auto flex flex-col lg:flex-row lg:gap-8 lg:px-8">
 
           {/* Player */}
-          <div className="lg:flex-1 min-w-0">
+          <div className="lg:flex-1 min-w-0 bg-black lg:rounded-3xl overflow-hidden shadow-2xl ring-1 ring-white/5">
             {streamLoading ? (
               <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
                 <div className="text-center">
@@ -284,7 +284,7 @@ export default function WatchPage() {
           </div>
 
           {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────── */}
-          <div className="hidden lg:flex flex-col w-[380px] xl:w-[440px] shrink-0 bg-black justify-center">
+          <div className="hidden lg:flex flex-col w-[400px] xl:w-[460px] shrink-0 bg-[#080808] justify-center lg:rounded-3xl shadow-2xl ring-1 ring-white/5 relative">
 
             {/* Inner wrapper – centered, padded symmetrically */}
             <div className="px-8 py-10 flex flex-col gap-7">
@@ -421,7 +421,7 @@ export default function WatchPage() {
               </div>
 
               {/* ⑦ Episode grid */}
-              <div className="overflow-y-auto hide-scrollbar" style={{ maxHeight: '180px' }}>
+              <div className="overflow-y-auto pr-2 custom-scroll" style={{ maxHeight: '220px' }}>
                 {movie.episodes && movie.episodes[activeServer] && (
                   <div className="flex flex-wrap gap-2.5">
                     {movie.episodes[activeServer].items.map((ep, i) => {
