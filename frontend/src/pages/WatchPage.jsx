@@ -283,8 +283,8 @@ export default function WatchPage() {
             )}
           </div>
 
-          {/* ── Desktop Sidebar (hidden on mobile, 50%) ──────────────────────────── */}
-          <div className="hidden lg:flex flex-col lg:flex-1 shrink-0 bg-black justify-center relative">
+          {/* ── Sidebar (50%) ──────────────────────────── */}
+          <div className="flex flex-col lg:flex-1 shrink-0 bg-black justify-center relative w-full lg:w-auto mt-6 lg:mt-0">
 
             {/* Inner wrapper – centered, padded symmetrically */}
             <div className="px-8 py-10 flex flex-col gap-7">
@@ -391,11 +391,11 @@ export default function WatchPage() {
                 </button>
               </div>
 
-              {/* ⑤ Divider */}
-              <div className="border-t border-white/10" />
+              {/* ⑤ Divider (hidden on mobile) */}
+              <div className="hidden lg:block border-t border-white/10" />
 
-              {/* ⑥ Episode list header + server tabs */}
-              <div className="flex items-center justify-between">
+              {/* ⑥ Episode list header + server tabs (hidden on mobile) */}
+              <div className="hidden lg:flex items-center justify-between">
                 <span className="text-base font-extrabold text-white flex items-center gap-2.5">
                   <span className="w-1.5 h-5 bg-[#E50914] rounded-full inline-block" />
                   Danh sách tập
@@ -420,8 +420,8 @@ export default function WatchPage() {
                 )}
               </div>
 
-              {/* ⑦ Episode grid */}
-              <div className="overflow-y-auto pr-2 custom-scroll" style={{ maxHeight: '220px' }}>
+              {/* ⑦ Episode grid (hidden on mobile) */}
+              <div className="hidden lg:block overflow-y-auto pr-2 custom-scroll" style={{ maxHeight: '220px' }}>
                 {movie.episodes && movie.episodes[activeServer] && (
                   <div className="flex flex-wrap gap-2.5">
                     {movie.episodes[activeServer].items.map((ep, i) => {
@@ -472,33 +472,6 @@ export default function WatchPage() {
           {/* Ratings row (below player on all screens) */}
           <RatingsRow ratings={ratings} />
 
-          {/* Prev / Next – below player on mobile */}
-          <div className="flex gap-3 mt-4 lg:hidden">
-            <button
-              onClick={() => prevEp && handleEpisodeClick(prevEp)}
-              disabled={!prevEp}
-              className="flex items-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-all
-                disabled:opacity-30 disabled:cursor-not-allowed
-                enabled:bg-[#282828] enabled:text-gray-200 enabled:hover:bg-white enabled:hover:text-black"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-              </svg>
-              Tập trước
-            </button>
-            <button
-              onClick={() => nextEp && handleEpisodeClick(nextEp)}
-              disabled={!nextEp}
-              className="flex items-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-all
-                disabled:opacity-30 disabled:cursor-not-allowed
-                enabled:bg-[#E50914] enabled:text-white enabled:hover:bg-[#F40612]"
-            >
-              Tập tiếp theo
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
         </div>
 
         {/* Server Tabs + Episode List – below player (all screens) */}
