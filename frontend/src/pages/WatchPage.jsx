@@ -284,33 +284,35 @@ export default function WatchPage() {
           </div>
 
           {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────── */}
-          <div className="hidden lg:flex flex-col w-[340px] xl:w-[400px] shrink-0 bg-black">
+          <div className="hidden lg:flex flex-col w-[360px] xl:w-[420px] shrink-0 bg-black">
+
+            {/* Spacer – pushes all content to the bottom of the player height */}
+            <div className="flex-1" />
 
             {/* ① Movie info */}
-            <div className="flex items-start gap-3 px-5 pt-5 pb-4">
-              {/* Poster thumbnail */}
+            <div className="flex items-start gap-4 px-6 pt-6 pb-5">
               <img
                 src={movie.thumb_url || movie.poster_url}
                 alt={movie.name}
-                className="w-14 h-20 rounded-lg object-cover shrink-0 shadow-lg"
+                className="w-20 h-28 rounded-xl object-cover shrink-0 shadow-xl"
                 onError={e => { e.target.style.display = 'none' }}
               />
               <div className="flex-1 min-w-0">
                 <Link
                   to={`/phim/${movie.slug}`}
-                  className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-[#E50914] transition-colors mb-1.5"
+                  className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#E50914] transition-colors mb-2"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                   </svg>
                   Chi tiết phim
                 </Link>
-                <h2 className="text-[15px] font-extrabold text-white leading-snug line-clamp-2 mb-0.5">{movie.name}</h2>
+                <h2 className="text-lg font-extrabold text-white leading-snug line-clamp-2 mb-1">{movie.name}</h2>
                 {movie.original_name && movie.original_name !== movie.name && (
-                  <p className="text-[11px] text-gray-500 line-clamp-1 mb-1">{movie.original_name}</p>
+                  <p className="text-sm text-gray-500 line-clamp-1 mb-2">{movie.original_name}</p>
                 )}
                 {currentEpName && (
-                  <span className="inline-block text-[11px] font-bold text-white bg-[#E50914] px-2 py-0.5 rounded mt-0.5">
+                  <span className="inline-block text-sm font-bold text-white bg-[#E50914] px-3 py-1 rounded-lg">
                     {currentEpName}
                   </span>
                 )}
@@ -319,31 +321,31 @@ export default function WatchPage() {
 
             {/* ② Ratings */}
             {ratings && ratings.found && (
-              <div className="px-5 pb-4 flex flex-wrap gap-2">
+              <div className="px-6 pb-5 flex flex-wrap gap-3">
                 {ratings.imdb && (
-                  <div className="flex items-center gap-1.5 bg-white/5 border border-yellow-500/20 rounded-lg px-3 py-2">
-                    <span className="text-base">⭐</span>
+                  <div className="flex items-center gap-2 bg-white/5 border border-yellow-500/20 rounded-xl px-4 py-2.5">
+                    <span className="text-xl">⭐</span>
                     <div>
-                      <div className="text-[9px] text-yellow-500/60 font-semibold uppercase tracking-wider leading-none">IMDb</div>
-                      <div className="text-[13px] font-extrabold text-yellow-400 leading-tight">{ratings.imdb}<span className="text-[9px] text-yellow-500/50">/10</span></div>
+                      <div className="text-[11px] text-yellow-500/60 font-bold uppercase tracking-wider leading-none">IMDb</div>
+                      <div className="text-base font-extrabold text-yellow-400 leading-tight mt-0.5">{ratings.imdb}<span className="text-xs text-yellow-500/50">/10</span></div>
                     </div>
                   </div>
                 )}
                 {ratings.rotten_tomatoes && (
-                  <div className="flex items-center gap-1.5 bg-white/5 border border-red-500/20 rounded-lg px-3 py-2">
-                    <span className="text-base">🍅</span>
+                  <div className="flex items-center gap-2 bg-white/5 border border-red-500/20 rounded-xl px-4 py-2.5">
+                    <span className="text-xl">🍅</span>
                     <div>
-                      <div className="text-[9px] text-red-400/60 font-semibold uppercase tracking-wider leading-none">RT</div>
-                      <div className="text-[13px] font-extrabold text-red-400 leading-tight">{ratings.rotten_tomatoes}</div>
+                      <div className="text-[11px] text-red-400/60 font-bold uppercase tracking-wider leading-none">RT</div>
+                      <div className="text-base font-extrabold text-red-400 leading-tight mt-0.5">{ratings.rotten_tomatoes}</div>
                     </div>
                   </div>
                 )}
                 {ratings.metacritic && (
-                  <div className="flex items-center gap-1.5 bg-white/5 border border-green-500/20 rounded-lg px-3 py-2">
-                    <span className="text-base">📊</span>
+                  <div className="flex items-center gap-2 bg-white/5 border border-green-500/20 rounded-xl px-4 py-2.5">
+                    <span className="text-xl">📊</span>
                     <div>
-                      <div className="text-[9px] text-green-400/60 font-semibold uppercase tracking-wider leading-none">MC</div>
-                      <div className="text-[13px] font-extrabold text-green-400 leading-tight">{ratings.metacritic}<span className="text-[9px] text-green-500/50">/100</span></div>
+                      <div className="text-[11px] text-green-400/60 font-bold uppercase tracking-wider leading-none">MC</div>
+                      <div className="text-base font-extrabold text-green-400 leading-tight mt-0.5">{ratings.metacritic}<span className="text-xs text-green-500/50">/100</span></div>
                     </div>
                   </div>
                 )}
@@ -351,22 +353,22 @@ export default function WatchPage() {
             )}
 
             {/* ③ Divider */}
-            <div className="mx-5 border-t border-white/8" />
+            <div className="mx-6 border-t border-white/10" />
 
             {/* ④ Prev / Next navigation */}
-            <div className="px-5 py-4 flex gap-3">
+            <div className="px-6 py-5 flex gap-3">
               <button
                 onClick={() => prevEp && handleEpisodeClick(prevEp)}
                 disabled={!prevEp}
                 style={{ flex: 1 }}
                 className={[
-                  'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200',
+                  'flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-bold transition-all duration-200',
                   prevEp
-                    ? 'bg-white/8 text-gray-200 hover:bg-white hover:text-black border border-white/10'
-                    : 'bg-white/3 text-gray-600 cursor-not-allowed border border-white/5'
+                    ? 'bg-white/10 text-gray-200 hover:bg-white hover:text-black border border-white/15'
+                    : 'bg-white/4 text-gray-700 cursor-not-allowed border border-white/8'
                 ].join(' ')}
               >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                 </svg>
                 Tập trước
@@ -376,39 +378,39 @@ export default function WatchPage() {
                 disabled={!nextEp}
                 style={{ flex: 1 }}
                 className={[
-                  'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200',
+                  'flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-bold transition-all duration-200',
                   nextEp
-                    ? 'bg-[#E50914] text-white hover:bg-[#ff1a26] shadow-lg shadow-red-900/30'
-                    : 'bg-[#E50914]/20 text-[#E50914]/30 cursor-not-allowed'
+                    ? 'bg-[#E50914] text-white hover:bg-[#ff1a26] shadow-lg shadow-red-900/40'
+                    : 'bg-[#E50914]/15 text-[#E50914]/30 cursor-not-allowed'
                 ].join(' ')}
               >
                 Tập tiếp
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
 
             {/* ⑤ Divider */}
-            <div className="mx-5 border-t border-white/8" />
+            <div className="mx-6 border-t border-white/10" />
 
             {/* ⑥ Episode list header */}
-            <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="w-1 h-3.5 bg-[#E50914] rounded-full inline-block" />
+            <div className="px-6 pt-5 pb-3 flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-300 flex items-center gap-2">
+                <span className="w-1.5 h-4 bg-[#E50914] rounded-full inline-block" />
                 Danh sách tập
               </span>
               {movie.episodes && movie.episodes.length > 1 && (
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                   {movie.episodes.map((server, i) => (
                     <button
                       key={i}
                       onClick={() => setActiveServer(i)}
                       className={[
-                        'text-[10px] font-bold px-2.5 py-1 rounded-md transition-all',
+                        'text-xs font-bold px-3 py-1.5 rounded-lg transition-all',
                         activeServer === i
                           ? 'bg-white text-black'
-                          : 'bg-white/8 text-gray-400 hover:bg-white/15 hover:text-white'
+                          : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'
                       ].join(' ')}
                     >
                       {server.server_name.replace('Vietsub', 'VS').replace('Thuyết Minh', 'TM').replace('Lồng Tiếng', 'LT')}
@@ -418,10 +420,10 @@ export default function WatchPage() {
               )}
             </div>
 
-            {/* ⑦ Episode grid – scrollable */}
-            <div className="flex-1 overflow-y-auto px-5 pb-5 hide-scrollbar">
+            {/* ⑦ Episode grid – max 4 rows, scrollable */}
+            <div className="px-6 pb-6 overflow-y-auto hide-scrollbar" style={{ maxHeight: '160px' }}>
               {movie.episodes && movie.episodes[activeServer] && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
+                <div className="flex flex-wrap gap-2">
                   {movie.episodes[activeServer].items.map((ep, i) => {
                     const isActive = ep.slug === episodeSlug || (!episodeSlug && i === 0 && activeServer === 0)
                     return (
@@ -429,10 +431,10 @@ export default function WatchPage() {
                         key={i}
                         onClick={() => handleEpisodeClick(ep)}
                         className={[
-                          'text-xs font-bold px-3 py-2 rounded-lg transition-all duration-150 min-w-[3rem]',
+                          'text-sm font-bold px-4 py-2.5 rounded-xl transition-all duration-150 min-w-[3.5rem]',
                           isActive
-                            ? 'bg-[#E50914] text-white shadow-md shadow-red-900/40'
-                            : 'bg-white/6 text-gray-300 hover:bg-white hover:text-black border border-white/8'
+                            ? 'bg-[#E50914] text-white shadow-lg shadow-red-900/40'
+                            : 'bg-white/8 text-gray-300 hover:bg-white hover:text-black border border-white/10'
                         ].join(' ')}
                       >
                         {ep.name}
