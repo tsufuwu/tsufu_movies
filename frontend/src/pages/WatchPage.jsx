@@ -284,35 +284,89 @@ export default function WatchPage() {
           </div>
 
           {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────── */}
-          <div className="hidden lg:flex flex-col w-[340px] xl:w-[380px] shrink-0 bg-[#0e0e0e] border-l border-gray-800">
-            {/* Movie info header */}
-            <div className="p-4 border-b border-gray-800">
-              <Link
-                to={`/phim/${movie.slug}`}
-                className="text-xs text-gray-500 hover:text-white transition-colors mb-2 block"
-              >
-                ← Chi tiết phim
-              </Link>
-              <h2 className="text-base font-extrabold text-white leading-tight line-clamp-2">{movie.name}</h2>
-              {movie.original_name && movie.original_name !== movie.name && (
-                <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{movie.original_name}</p>
-              )}
-              {currentEpName && (
-                <p className="text-sm text-[#E50914] font-bold mt-1">{currentEpName}</p>
-              )}
-              <RatingsRow ratings={ratings} />
+          <div className="hidden lg:flex flex-col w-[340px] xl:w-[400px] shrink-0 bg-black">
+
+            {/* ① Movie info */}
+            <div className="flex items-start gap-3 px-5 pt-5 pb-4">
+              {/* Poster thumbnail */}
+              <img
+                src={movie.thumb_url || movie.poster_url}
+                alt={movie.name}
+                className="w-14 h-20 rounded-lg object-cover shrink-0 shadow-lg"
+                onError={e => { e.target.style.display = 'none' }}
+              />
+              <div className="flex-1 min-w-0">
+                <Link
+                  to={`/phim/${movie.slug}`}
+                  className="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-[#E50914] transition-colors mb-1.5"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Chi tiết phim
+                </Link>
+                <h2 className="text-[15px] font-extrabold text-white leading-snug line-clamp-2 mb-0.5">{movie.name}</h2>
+                {movie.original_name && movie.original_name !== movie.name && (
+                  <p className="text-[11px] text-gray-500 line-clamp-1 mb-1">{movie.original_name}</p>
+                )}
+                {currentEpName && (
+                  <span className="inline-block text-[11px] font-bold text-white bg-[#E50914] px-2 py-0.5 rounded mt-0.5">
+                    {currentEpName}
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Prev / Next buttons */}
-            <div className="flex gap-2 p-4 border-b border-gray-800">
+            {/* ② Ratings */}
+            {ratings && ratings.found && (
+              <div className="px-5 pb-4 flex flex-wrap gap-2">
+                {ratings.imdb && (
+                  <div className="flex items-center gap-1.5 bg-white/5 border border-yellow-500/20 rounded-lg px-3 py-2">
+                    <span className="text-base">⭐</span>
+                    <div>
+                      <div className="text-[9px] text-yellow-500/60 font-semibold uppercase tracking-wider leading-none">IMDb</div>
+                      <div className="text-[13px] font-extrabold text-yellow-400 leading-tight">{ratings.imdb}<span className="text-[9px] text-yellow-500/50">/10</span></div>
+                    </div>
+                  </div>
+                )}
+                {ratings.rotten_tomatoes && (
+                  <div className="flex items-center gap-1.5 bg-white/5 border border-red-500/20 rounded-lg px-3 py-2">
+                    <span className="text-base">🍅</span>
+                    <div>
+                      <div className="text-[9px] text-red-400/60 font-semibold uppercase tracking-wider leading-none">RT</div>
+                      <div className="text-[13px] font-extrabold text-red-400 leading-tight">{ratings.rotten_tomatoes}</div>
+                    </div>
+                  </div>
+                )}
+                {ratings.metacritic && (
+                  <div className="flex items-center gap-1.5 bg-white/5 border border-green-500/20 rounded-lg px-3 py-2">
+                    <span className="text-base">📊</span>
+                    <div>
+                      <div className="text-[9px] text-green-400/60 font-semibold uppercase tracking-wider leading-none">MC</div>
+                      <div className="text-[13px] font-extrabold text-green-400 leading-tight">{ratings.metacritic}<span className="text-[9px] text-green-500/50">/100</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ③ Divider */}
+            <div className="mx-5 border-t border-white/8" />
+
+            {/* ④ Prev / Next navigation */}
+            <div className="px-5 py-4 flex gap-3">
               <button
                 onClick={() => prevEp && handleEpisodeClick(prevEp)}
                 disabled={!prevEp}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-bold transition-all
-                  disabled:opacity-30 disabled:cursor-not-allowed
-                  enabled:bg-[#282828] enabled:text-gray-200 enabled:hover:bg-white enabled:hover:text-black"
+                style={{ flex: 1 }}
+                className={[
+                  'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200',
+                  prevEp
+                    ? 'bg-white/8 text-gray-200 hover:bg-white hover:text-black border border-white/10'
+                    : 'bg-white/3 text-gray-600 cursor-not-allowed border border-white/5'
+                ].join(' ')}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                 </svg>
                 Tập trước
@@ -320,32 +374,75 @@ export default function WatchPage() {
               <button
                 onClick={() => nextEp && handleEpisodeClick(nextEp)}
                 disabled={!nextEp}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-bold transition-all
-                  disabled:opacity-30 disabled:cursor-not-allowed
-                  enabled:bg-[#E50914] enabled:text-white enabled:hover:bg-[#F40612]"
+                style={{ flex: 1 }}
+                className={[
+                  'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200',
+                  nextEp
+                    ? 'bg-[#E50914] text-white hover:bg-[#ff1a26] shadow-lg shadow-red-900/30'
+                    : 'bg-[#E50914]/20 text-[#E50914]/30 cursor-not-allowed'
+                ].join(' ')}
               >
-                Tập tiếp theo
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                Tập tiếp
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
             </div>
 
-            {/* Episode list (scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 hide-scrollbar">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                <span className="w-1 h-3 bg-[#E50914] rounded-full" />
+            {/* ⑤ Divider */}
+            <div className="mx-5 border-t border-white/8" />
+
+            {/* ⑥ Episode list header */}
+            <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <span className="w-1 h-3.5 bg-[#E50914] rounded-full inline-block" />
                 Danh sách tập
-              </h3>
-              <EpisodeList
-                episodes={movie.episodes}
-                activeServer={activeServer}
-                setActiveServer={setActiveServer}
-                episodeSlug={episodeSlug}
-                handleEpisodeClick={handleEpisodeClick}
-                compact
-              />
+              </span>
+              {movie.episodes && movie.episodes.length > 1 && (
+                <div className="flex gap-1">
+                  {movie.episodes.map((server, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveServer(i)}
+                      className={[
+                        'text-[10px] font-bold px-2.5 py-1 rounded-md transition-all',
+                        activeServer === i
+                          ? 'bg-white text-black'
+                          : 'bg-white/8 text-gray-400 hover:bg-white/15 hover:text-white'
+                      ].join(' ')}
+                    >
+                      {server.server_name.replace('Vietsub', 'VS').replace('Thuyết Minh', 'TM').replace('Lồng Tiếng', 'LT')}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {/* ⑦ Episode grid – scrollable */}
+            <div className="flex-1 overflow-y-auto px-5 pb-5 hide-scrollbar">
+              {movie.episodes && movie.episodes[activeServer] && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {movie.episodes[activeServer].items.map((ep, i) => {
+                    const isActive = ep.slug === episodeSlug || (!episodeSlug && i === 0 && activeServer === 0)
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => handleEpisodeClick(ep)}
+                        className={[
+                          'text-xs font-bold px-3 py-2 rounded-lg transition-all duration-150 min-w-[3rem]',
+                          isActive
+                            ? 'bg-[#E50914] text-white shadow-md shadow-red-900/40'
+                            : 'bg-white/6 text-gray-300 hover:bg-white hover:text-black border border-white/8'
+                        ].join(' ')}
+                      >
+                        {ep.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
           </div>
           {/* ── End Sidebar ─────────────────────────────────────────────────── */}
         </div>
