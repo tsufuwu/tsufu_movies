@@ -15,6 +15,7 @@ from services.cache import cache
 from routers.session import router as session_router
 from routers.movies import router as movies_router
 from routers.stream import router as stream_router
+from routers.ratings import router as ratings_router
 
 boot_logger = logging.getLogger("app.boot")
 
@@ -112,6 +113,7 @@ app.add_middleware(
 app.include_router(session_router)
 app.include_router(movies_router)
 app.include_router(stream_router)
+app.include_router(ratings_router)
 
 
 @app.get("/")

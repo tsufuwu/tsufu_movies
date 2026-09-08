@@ -1,13 +1,68 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { getMovieDetail } from '../api/movieApi'
+import { getMovieDetail, getRatings } from '../api/movieApi'
+
+// ── Rating Badge ──────────────────────────────────────────────────────────────
+function RatingBadge({ label, value, icon, colorClass }) {
+  if (!value) return null
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-sm ${colorClass}`}>
+      <span className="text-xl leading-none">{icon}</span>
+      <div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider opacity-60 leading-none mb-1">{label}</div>
+        <div className="text-sm font-extrabold leading-none">{value}</div>
+      </div>
+    </div>
+  )
+}
+
+function RatingsSection({ ratings }) {
+  if (!ratings || !ratings.found) return null
+  const hasAny = ratings.imdb || ratings.rotten_tomatoes || ratings.metacritic
+  if (!hasAny) return null
+
+  return (
+    <div className="mb-5">
+      <div className="flex flex-wrap gap-2">
+        {ratings.imdb && (
+          <RatingBadge
+            label="IMDb"
+            value={`${ratings.imdb}/10`}
+            icon="⭐"
+            colorClass="border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
+          />
+        )}
+        {ratings.rotten_tomatoes && (
+          <RatingBadge
+            label="Rotten Tomatoes"
+            value={ratings.rotten_tomatoes}
+            icon="🍅"
+            colorClass="border-red-500/30 bg-red-500/10 text-red-300"
+          />
+        )}
+        {ratings.metacritic && (
+          <RatingBadge
+            label="Metacritic"
+            value={`${ratings.metacritic}/100`}
+            icon="📊"
+            colorClass="border-green-500/30 bg-green-500/10 text-green-300"
+          />
+        )}
+      </div>
+      {ratings.imdb_votes && (
+        <p className="text-xs text-gray-500 mt-1.5">{ratings.imdb_votes} lượt đánh giá trên IMDb</p>
+      )}
+    </div>
+  )
+}
 
 export default function MovieDetailPage() {
   const { slug } = useParams()
   const [movie, setMovie] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [ratings, setRatings] = useState(null)
 
   useEffect(() => {
     async function fetchDetail() {
@@ -16,6 +71,13 @@ export default function MovieDetailPage() {
       try {
         const data = await getMovieDetail(slug)
         setMovie(data.movie)
+
+        // Fetch ratings in background – use English title first
+        const m = data.movie
+        const titleForRatings = m.original_name && m.original_name !== m.name
+          ? m.original_name
+          : m.name
+        getRatings(titleForRatings, m.year || '').then(r => setRatings(r))
       } catch (err) {
         setError('Không tìm thấy phim')
       } finally {
@@ -63,6 +125,9 @@ export default function MovieDetailPage() {
               {movie.current_episode && <span className="badge-quality bg-purple-600">{movie.current_episode}</span>}
               {movie.time && <span className="badge-lang">{movie.time}</span>}
             </div>
+
+            {/* ── Ratings ───────────────────────────────────────────────── */}
+            <RatingsSection ratings={ratings} />
 
             {movie.categories && movie.categories.length > 0 && (
               <div className="flex flex-wrap gap-4 mb-6 text-sm" style={{ marginBottom: "1rem", lineHeight: "1.8" }}>

@@ -2,8 +2,95 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import LoadingSpinner from '../components/LoadingSpinner'
 import SmartVideoPlayer from '../components/SmartVideoPlayer'
-import { getMovieDetail, resolveStream } from '../api/movieApi'
+import { getMovieDetail, resolveStream, getRatings } from '../api/movieApi'
 import { watchHistory } from '../utils/watchHistory'
+
+// ── Ratings Badges ────────────────────────────────────────────────────────────
+function RatingBadge({ label, value, color, icon }) {
+  if (!value) return null
+  return (
+    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${color} text-xs font-bold`}>
+      <span className="text-base leading-none">{icon}</span>
+      <div>
+        <div className="text-[10px] font-medium opacity-70 leading-none mb-0.5">{label}</div>
+        <div className="text-sm font-extrabold leading-none">{value}</div>
+      </div>
+    </div>
+  )
+}
+
+function RatingsRow({ ratings }) {
+  if (!ratings || !ratings.found) return null
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      {ratings.imdb && (
+        <RatingBadge
+          label="IMDb"
+          value={`${ratings.imdb}/10`}
+          icon="⭐"
+          color="border-yellow-500/40 bg-yellow-500/10 text-yellow-400"
+        />
+      )}
+      {ratings.rotten_tomatoes && (
+        <RatingBadge
+          label="Rotten Tomatoes"
+          value={ratings.rotten_tomatoes}
+          icon="🍅"
+          color="border-red-500/40 bg-red-500/10 text-red-400"
+        />
+      )}
+      {ratings.metacritic && (
+        <RatingBadge
+          label="Metacritic"
+          value={`${ratings.metacritic}/100`}
+          icon="📊"
+          color="border-green-500/40 bg-green-500/10 text-green-400"
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Episode list (reusable in sidebar & bottom) ───────────────────────────────
+function EpisodeList({ episodes, activeServer, setActiveServer, episodeSlug, handleEpisodeClick, compact = false }) {
+  if (!episodes || !episodes[activeServer]) return null
+  return (
+    <>
+      {/* Server Tabs */}
+      {episodes.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {episodes.map((server, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveServer(i)}
+              className={activeServer === i ? 'btn-server-active' : 'btn-server'}
+              style={{ padding: compact ? '0.4rem 0.9rem' : undefined, fontSize: compact ? '0.8rem' : undefined }}
+            >
+              {server.server_name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Episodes */}
+      <div className={`flex flex-wrap gap-1.5 ${compact ? 'max-h-64 overflow-y-auto pr-1 hide-scrollbar' : ''}`}>
+        {episodes[activeServer].items.map((ep, i) => {
+          const isActive = ep.slug === episodeSlug || (!episodeSlug && i === 0 && activeServer === 0)
+          return (
+            <button
+              key={i}
+              onClick={() => handleEpisodeClick(ep)}
+              className={isActive ? 'btn-episode-active' : 'btn-episode'}
+              style={compact ? { padding: '0.4rem 0.8rem', fontSize: '0.85rem', minWidth: '3rem' } : undefined}
+            >
+              {ep.name}
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
+}
 
 export default function WatchPage() {
   const { slug, episodeSlug } = useParams()
@@ -16,6 +103,7 @@ export default function WatchPage() {
   const [streamLoading, setStreamLoading] = useState(false)
   const [streamError, setStreamError] = useState(false)
   const [initialTime, setInitialTime] = useState(0)
+  const [ratings, setRatings] = useState(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -60,6 +148,12 @@ export default function WatchPage() {
             await loadStream(targetEp)
           }
         }
+
+        // Fetch ratings in background (non-blocking)
+        const titleForRatings = m.original_name && m.original_name !== m.name
+          ? m.original_name
+          : m.name
+        getRatings(titleForRatings, m.year || '').then(r => setRatings(r))
       } catch (err) {
         console.error('Failed to load movie:', err)
       } finally {
@@ -79,7 +173,6 @@ export default function WatchPage() {
     
     try {
       if (ep.m3u8) {
-        // Có sẵn link direct m3u8 từ API nguồn -> resolve để rewrite playlist & thêm CORS qua proxy
         try {
           const resolved = await resolveStream(ep.m3u8)
           setCurrentEpData({
@@ -90,7 +183,6 @@ export default function WatchPage() {
           setCurrentEpData({ m3u8: ep.m3u8, embed: ep.embed || null })
         }
       } else if (ep.embed) {
-        // Gọi server của mình để phân giải m3u8 hoặc proxy link embed
         const resolved = await resolveStream(ep.embed)
         setCurrentEpData({
           m3u8: resolved.m3u8 || null,
@@ -101,7 +193,6 @@ export default function WatchPage() {
       }
     } catch (err) {
       console.error('Resolve stream error:', err)
-      // Fallback về link embed gốc nếu proxy bị lỗi
       setCurrentEpData({
         m3u8: null,
         embed: ep.embed || null
@@ -136,6 +227,16 @@ export default function WatchPage() {
     await loadStream(ep)
   }
 
+  // ── Compute prev / next episode ──────────────────────────────────────────────
+  const currentItems = movie?.episodes?.[activeServer]?.items || []
+  const currentEpIndex = currentItems.findIndex(ep =>
+    ep.slug === episodeSlug || (!episodeSlug && currentItems.indexOf(ep) === 0)
+  )
+  const prevEp = currentEpIndex > 0 ? currentItems[currentEpIndex - 1] : null
+  const nextEp = currentEpIndex < currentItems.length - 1 && currentEpIndex >= 0
+    ? currentItems[currentEpIndex + 1]
+    : null
+
   if (loading) return <LoadingSpinner />
   if (!movie) return (
     <div className="pt-24 text-center">
@@ -145,50 +246,120 @@ export default function WatchPage() {
 
   return (
     <div className="pt-16">
-      {/* Player */}
+      {/* ── Player Area (2-col on lg+) ─────────────────────────────────────── */}
       <div className="bg-black">
-        <div className="max-w-6xl mx-auto">
-          {streamLoading ? (
-            <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
-              <div className="text-center">
-                <div className="w-10 h-10 rounded-full border-4 border-[var(--color-bg-hover)] border-t-[var(--color-accent)] animate-spin mx-auto mb-3" />
-                <p className="text-sm text-[var(--color-text-muted)]">Đang tải nguồn phát...</p>
+        <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row">
+
+          {/* Player */}
+          <div className="lg:flex-1 min-w-0">
+            {streamLoading ? (
+              <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
+                <div className="text-center">
+                  <div className="w-10 h-10 rounded-full border-4 border-[var(--color-bg-hover)] border-t-[var(--color-accent)] animate-spin mx-auto mb-3" />
+                  <p className="text-sm text-[var(--color-text-muted)]">Đang tải nguồn phát...</p>
+                </div>
               </div>
+            ) : streamError ? (
+              <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
+                <div className="text-center">
+                  <svg className="w-12 h-12 mx-auto text-[var(--color-text-muted)] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <p className="text-[var(--color-text-muted)]">Không thể tải nguồn phát</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">Vui lòng thử tập khác hoặc quay lại sau</p>
+                </div>
+              </div>
+            ) : currentEpData ? (
+              <SmartVideoPlayer
+                m3u8Url={currentEpData.m3u8}
+                embedUrl={currentEpData.embed}
+                initialTime={initialTime}
+                onProgress={handleProgress}
+              />
+            ) : (
+              <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
+                <p className="text-[var(--color-text-muted)]">Không có nguồn phát</p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Desktop Sidebar (hidden on mobile) ──────────────────────────── */}
+          <div className="hidden lg:flex flex-col w-[340px] xl:w-[380px] shrink-0 bg-[#0e0e0e] border-l border-gray-800">
+            {/* Movie info header */}
+            <div className="p-4 border-b border-gray-800">
+              <Link
+                to={`/phim/${movie.slug}`}
+                className="text-xs text-gray-500 hover:text-white transition-colors mb-2 block"
+              >
+                ← Chi tiết phim
+              </Link>
+              <h2 className="text-base font-extrabold text-white leading-tight line-clamp-2">{movie.name}</h2>
+              {movie.original_name && movie.original_name !== movie.name && (
+                <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{movie.original_name}</p>
+              )}
+              {currentEpName && (
+                <p className="text-sm text-[#E50914] font-bold mt-1">{currentEpName}</p>
+              )}
+              <RatingsRow ratings={ratings} />
             </div>
-          ) : streamError ? (
-            <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
-              <div className="text-center">
-                <svg className="w-12 h-12 mx-auto text-[var(--color-text-muted)] mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+
+            {/* Prev / Next buttons */}
+            <div className="flex gap-2 p-4 border-b border-gray-800">
+              <button
+                onClick={() => prevEp && handleEpisodeClick(prevEp)}
+                disabled={!prevEp}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-bold transition-all
+                  disabled:opacity-30 disabled:cursor-not-allowed
+                  enabled:bg-[#282828] enabled:text-gray-200 enabled:hover:bg-white enabled:hover:text-black"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                 </svg>
-                <p className="text-[var(--color-text-muted)]">Không thể tải nguồn phát</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">Vui lòng thử tập khác hoặc quay lại sau</p>
-              </div>
+                Tập trước
+              </button>
+              <button
+                onClick={() => nextEp && handleEpisodeClick(nextEp)}
+                disabled={!nextEp}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-bold transition-all
+                  disabled:opacity-30 disabled:cursor-not-allowed
+                  enabled:bg-[#E50914] enabled:text-white enabled:hover:bg-[#F40612]"
+              >
+                Tập tiếp theo
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
-          ) : currentEpData ? (
-            <SmartVideoPlayer
-              m3u8Url={currentEpData.m3u8}
-              embedUrl={currentEpData.embed}
-              initialTime={initialTime}
-              onProgress={handleProgress}
-            />
-          ) : (
-            <div className="w-full aspect-video flex items-center justify-center bg-[var(--color-bg-secondary)]">
-              <p className="text-[var(--color-text-muted)]">Không có nguồn phát</p>
+
+            {/* Episode list (scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 hide-scrollbar">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-1 h-3 bg-[#E50914] rounded-full" />
+                Danh sách tập
+              </h3>
+              <EpisodeList
+                episodes={movie.episodes}
+                activeServer={activeServer}
+                setActiveServer={setActiveServer}
+                episodeSlug={episodeSlug}
+                handleEpisodeClick={handleEpisodeClick}
+                compact
+              />
             </div>
-          )}
+          </div>
+          {/* ── End Sidebar ─────────────────────────────────────────────────── */}
         </div>
       </div>
 
-      {/* Movie Info + Episodes */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+      {/* ── Below-player info (all screens; sidebar duplicate on desktop) ──── */}
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6">
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <Link
               to={`/phim/${movie.slug}`}
               className="text-sm text-gray-400 hover:text-white transition-colors"
             >
-              &larr; Chi tiết phim
+              ← Chi tiết phim
             </Link>
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold text-white mb-2">
@@ -196,11 +367,41 @@ export default function WatchPage() {
             {currentEpName && <span className="text-gray-400 font-medium text-xl sm:text-3xl ml-2">| {currentEpName}</span>}
           </h1>
           {movie.original_name && movie.original_name !== movie.name && (
-            <p className="text-lg text-gray-400 mt-4 mb-8" style={{ marginTop: "1rem", marginBottom: "2rem" }}>{movie.original_name}</p>
+            <p className="text-lg text-gray-400 mt-4 mb-2">{movie.original_name}</p>
           )}
+          {/* Ratings row (below player on all screens) */}
+          <RatingsRow ratings={ratings} />
+
+          {/* Prev / Next – below player on mobile */}
+          <div className="flex gap-3 mt-4 lg:hidden">
+            <button
+              onClick={() => prevEp && handleEpisodeClick(prevEp)}
+              disabled={!prevEp}
+              className="flex items-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-all
+                disabled:opacity-30 disabled:cursor-not-allowed
+                enabled:bg-[#282828] enabled:text-gray-200 enabled:hover:bg-white enabled:hover:text-black"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+              Tập trước
+            </button>
+            <button
+              onClick={() => nextEp && handleEpisodeClick(nextEp)}
+              disabled={!nextEp}
+              className="flex items-center gap-2 py-2.5 px-5 rounded-xl text-sm font-bold transition-all
+                disabled:opacity-30 disabled:cursor-not-allowed
+                enabled:bg-[#E50914] enabled:text-white enabled:hover:bg-[#F40612]"
+            >
+              Tập tiếp theo
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
         </div>
 
-        {/* Server Tabs */}
+        {/* Server Tabs + Episode List – below player (all screens) */}
         {movie.episodes && movie.episodes.length > 1 && (
           <div className="flex flex-wrap gap-3 mb-6 mt-8" style={{ marginTop: "2rem" }}>
             {movie.episodes.map((server, i) => (
@@ -215,7 +416,6 @@ export default function WatchPage() {
           </div>
         )}
 
-        {/* Episode List */}
         {movie.episodes && movie.episodes[activeServer] && (
           <div className="bg-[#181818] rounded-xl p-6 mt-8" style={{ marginTop: "2rem" }}>
             <h3 className="text-sm font-semibold text-white mb-6 flex items-center gap-3 text-lg" style={{ marginBottom: "1.5rem" }}>

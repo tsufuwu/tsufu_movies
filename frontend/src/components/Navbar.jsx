@@ -29,6 +29,7 @@ export default function Navbar() {
   const navigate = useNavigate()
   const genreRef = useRef(null)
   const searchRef = useRef(null)
+  const mobileSearchRef = useRef(null)
 
   // Xử lý scroll để đổi nền Navbar
   useEffect(() => {
@@ -43,7 +44,10 @@ export default function Navbar() {
       if (genreRef.current && !genreRef.current.contains(e.target)) {
         setGenreOpen(false)
       }
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
+      if (
+        searchRef.current && !searchRef.current.contains(e.target) &&
+        mobileSearchRef.current && !mobileSearchRef.current.contains(e.target)
+      ) {
         setShowSuggestions(false)
       }
     }
@@ -76,7 +80,7 @@ export default function Navbar() {
   }, [query, honeypot])
 
   const handleSearch = (e) => {
-    e.preventDefault()
+    e?.preventDefault()
     if (query.trim()) {
       const hpParam = honeypot ? `&_hp=${encodeURIComponent(honeypot)}` : ''
       navigate(`/tim-kiem?q=${encodeURIComponent(query.trim())}${hpParam}`)
@@ -95,6 +99,62 @@ export default function Navbar() {
 
   const navLinkClass = "nav-link-custom"
   const fontStyle = { fontFamily: "'Montserrat', sans-serif" }
+
+  // Suggestion dropdown – shared between desktop & mobile
+  const SuggestionDropdown = ({ isMobile = false }) => (
+    <div className={`${isMobile ? 'relative mt-2' : 'absolute top-full right-0 mt-3 w-80'} bg-[#181818] border border-gray-800 rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col z-50`}>
+      {/* "Tìm kiếm với từ khóa xxx" – always shown first */}
+      <div
+        onClick={handleSearch}
+        className="flex items-center gap-3 px-4 py-3 border-b border-gray-700 bg-[#1f1f1f] hover:bg-[#282828] cursor-pointer transition-colors group"
+      >
+        <svg className="w-4 h-4 text-[#E50914] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <span className="text-sm text-gray-300 group-hover:text-white">
+          Tìm kiếm với từ khóa <span className="text-white font-bold">"{query}"</span>
+        </span>
+      </div>
+
+      {loadingSuggestions ? (
+        <div className="p-4 flex items-center justify-center text-gray-400 text-sm">
+          <div className="w-5 h-5 rounded-full border-2 border-white/10 border-t-[#E50914] animate-spin mr-2"></div>
+          Đang tìm...
+        </div>
+      ) : suggestions.length > 0 ? (
+        <div>
+          {suggestions.map(movie => (
+            <div 
+              key={movie.slug} 
+              onClick={() => handleSuggestionClick(movie.slug)}
+              className="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-[#282828] cursor-pointer transition-colors"
+            >
+              <img 
+                src={movie.thumb_url || movie.poster_url} 
+                alt={movie.name} 
+                className="w-12 h-16 object-cover rounded-md"
+                onError={(e) => { e.target.src = 'https://via.placeholder.com/48x64?text=No+Img' }}
+              />
+              <div className="flex-1 overflow-hidden">
+                <h4 className="text-sm font-bold text-white line-clamp-1">{movie.name}</h4>
+                <p className="text-xs text-gray-400 mt-1">{movie.year || 'Đang cập nhật'} {movie.language ? `• ${movie.language}` : ''}</p>
+              </div>
+            </div>
+          ))}
+          <div 
+            onClick={handleSearch}
+            className="p-3 text-center text-sm font-bold text-[#E50914] hover:bg-white/5 cursor-pointer transition-colors"
+          >
+            Xem tất cả kết quả
+          </div>
+        </div>
+      ) : (
+        <div className="p-4 text-center text-sm text-gray-400">
+          Không tìm thấy "{query}"
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -169,7 +229,7 @@ export default function Navbar() {
 
           {/* Search + Mobile Toggle */}
           <div className="flex items-center gap-3">
-            {/* Thanh Search Mới */}
+            {/* Desktop Search */}
             <form onSubmit={handleSearch} className="hidden sm:flex items-center relative" ref={searchRef}>
               {/* Anti-bot Honeypot input */}
               <input
@@ -184,11 +244,14 @@ export default function Navbar() {
               />
               <div className="relative group flex items-center">
                 <input
-                  type="text"
+                  type="search"
                   value={query}
-                  onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true); }}
-                  onFocus={() => { if(query) setShowSuggestions(true); }}
+                  onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}
+                  onFocus={() => { if (query) setShowSuggestions(true) }}
                   placeholder="Tìm kiếm phim..."
+                  autoComplete="off"
+                  inputMode="search"
+                  enterKeyHint="search"
                   className="w-56 lg:w-72 bg-[#181818]/80 backdrop-blur-md border border-gray-700/60 rounded-full px-5 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#E50914] focus:ring-1 focus:ring-[#E50914]/50 focus:bg-[#181818] transition-all shadow-lg"
                   style={fontStyle}
                 />
@@ -199,47 +262,9 @@ export default function Navbar() {
                 </button>
               </div>
 
-              {/* Gợi ý tìm kiếm (Dropdown) */}
-              {showSuggestions && (query.trim().length > 0) && (
-                <div className="absolute top-full right-0 mt-3 w-80 bg-[#181818] border border-gray-800 rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col z-50">
-                  {loadingSuggestions ? (
-                    <div className="p-4 flex items-center justify-center text-gray-400 text-sm">
-                      <div className="w-5 h-5 rounded-full border-2 border-white/10 border-t-[#E50914] animate-spin mr-2"></div>
-                      Đang tìm...
-                    </div>
-                  ) : suggestions.length > 0 ? (
-                    <div>
-                      {suggestions.map(movie => (
-                        <div 
-                          key={movie.slug} 
-                          onClick={() => handleSuggestionClick(movie.slug)}
-                          className="flex items-center gap-3 p-3 border-b border-gray-800 hover:bg-[#282828] cursor-pointer transition-colors"
-                        >
-                          <img 
-                            src={movie.thumb_url || movie.poster_url} 
-                            alt={movie.name} 
-                            className="w-12 h-16 object-cover rounded-md"
-                            onError={(e) => { e.target.src = 'https://via.placeholder.com/48x64?text=No+Img' }}
-                          />
-                          <div className="flex-1 overflow-hidden">
-                            <h4 className="text-sm font-bold text-white line-clamp-1 group-hover:text-[#E50914]">{movie.name}</h4>
-                            <p className="text-xs text-gray-400 mt-1">{movie.year || 'Đang cập nhật'} {movie.language ? `• ${movie.language}` : ''}</p>
-                          </div>
-                        </div>
-                      ))}
-                      <div 
-                        onClick={handleSearch}
-                        className="p-3 text-center text-sm font-bold text-[#E50914] hover:bg-white/5 cursor-pointer transition-colors"
-                      >
-                        Xem tất cả kết quả
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-sm text-gray-400">
-                      Không tìm thấy "{query}"
-                    </div>
-                  )}
-                </div>
+              {/* Desktop Suggestion Dropdown */}
+              {showSuggestions && query.trim().length > 0 && (
+                <SuggestionDropdown />
               )}
             </form>
 
@@ -262,26 +287,49 @@ export default function Navbar() {
         {/* Mobile Menu */}
         {menuOpen && (
           <div className="md:hidden bg-[#141414] border border-gray-800 rounded-2xl mt-4 p-5 mb-4 shadow-2xl" style={fontStyle}>
-            <form onSubmit={handleSearch} className="mb-6">
-              {/* Anti-bot Honeypot input */}
-              <input
-                type="text"
-                name="website"
-                value={honeypot}
-                onChange={(e) => setHoneypot(e.target.value)}
-                style={{ position: 'absolute', opacity: 0, top: '-9999px', left: '-9999px', height: 0, width: 0, zIndex: -1 }}
-                tabIndex={-1}
-                autoComplete="off"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Tìm kiếm phim..."
-                className="w-full bg-black/50 border border-gray-800 rounded-xl px-5 py-3 text-base text-white placeholder-gray-500 focus:outline-none focus:border-[#E50914]"
-              />
-            </form>
+            {/* Mobile Search */}
+            <div className="mb-6" ref={mobileSearchRef}>
+              <form onSubmit={handleSearch}>
+                {/* Anti-bot Honeypot input */}
+                <input
+                  type="text"
+                  name="website"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                  style={{ position: 'absolute', opacity: 0, top: '-9999px', left: '-9999px', height: 0, width: 0, zIndex: -1 }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                />
+                <div className="relative">
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}
+                    onFocus={() => { if (query) setShowSuggestions(true) }}
+                    placeholder="Tìm kiếm phim..."
+                    autoComplete="off"
+                    inputMode="search"
+                    enterKeyHint="search"
+                    className="w-full bg-black/50 border border-gray-800 rounded-xl px-5 py-3 pr-12 text-base text-white placeholder-gray-500 focus:outline-none focus:border-[#E50914]"
+                  />
+                  <button
+                    type="submit"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#E50914] transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
+
+              {/* Mobile Suggestion Dropdown */}
+              {showSuggestions && query.trim().length > 0 && (
+                <SuggestionDropdown isMobile />
+              )}
+            </div>
+
             <div className="flex flex-col gap-2">
               <Link to="/" className="text-base font-bold px-4 py-3 text-gray-300 hover:bg-white hover:text-[#E50914] rounded-xl transition-colors" onClick={() => setMenuOpen(false)}>Trang Chủ</Link>
               <Link to="/danh-sach/phim-le" className="text-base font-bold px-4 py-3 text-gray-300 hover:bg-white hover:text-[#E50914] rounded-xl transition-colors" onClick={() => setMenuOpen(false)}>Phim Lẻ</Link>

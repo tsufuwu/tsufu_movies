@@ -199,8 +199,32 @@ export async function checkHealth() {
 }
 
 /**
+ * Fetch IMDB / Metacritic / Rotten Tomatoes ratings via OMDB proxy.
+ * title – English title preferred; year – 4-digit year string (optional).
+ * Results are cached 24 h client-side (ratings rarely change).
+ */
+export async function getRatings(title, year = '') {
+  if (!title) return null
+  const cacheKey = `ratings:${title.toLowerCase()}:${year}`
+  const cached = clientCache.get(cacheKey)
+  if (cached) return cached
+
+  try {
+    let url = `${BASE_URL}/api/ratings?title=${encodeURIComponent(title)}`
+    if (year) url += `&year=${encodeURIComponent(year)}`
+    const res = await fetch(url, { credentials: 'include' })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data) clientCache.set(cacheKey, data, 86400) // 24h
+    return data
+  } catch {
+    return null
+  }
+}
+
+/**
  * Clear client-side data cache
  */
 export function clearClientCache() {
-  clientCache.clear();
+  clientCache.clear()
 }
