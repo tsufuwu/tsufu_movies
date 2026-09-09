@@ -2,9 +2,9 @@ import { Link } from 'react-router-dom'
 
 export default function Footer() {
   return (
-    <footer className="bg-[#141414] border-t border-gray-800 mt-16" style={{ marginTop: '5rem', paddingBottom: '2rem' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-12 md:gap-8">
+    <footer className="bg-[#141414] border-t border-gray-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 md:gap-6">
           
           {/* Cột 1: Logo & Info */}
           <div className="flex flex-col">
@@ -77,7 +77,7 @@ export default function Footer() {
           </div>
 
         {/* Bản quyền */}
-        <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+        <div className="border-t border-gray-800 mt-6 pt-4 flex flex-col md:flex-row justify-between items-center gap-3 text-center md:text-left">
           <p className="text-sm text-gray-500 font-medium">
             &copy; {new Date().getFullYear()} TSUFU. Trang web xem phim của Tsufu.
           </p>
